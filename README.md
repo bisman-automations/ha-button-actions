@@ -23,7 +23,9 @@ Button Actions runs a small state machine per button inside Home Assistant, so e
 - **Any action:** each gesture uses the same action editor as scripts and automations. Target areas, devices or entities, use any service, add delays, conditions, templates.
 - **Hold to repeat:** turn on repeat for a button and its long-press action keeps running while held. Pair it with `brightness_step_pct` or `volume_up` for hold-to-dim and hold-to-raise.
 - **No waiting when you don't need it:** a button with no double-press action fires its short press the instant you let go. A button with no long-press action treats a long press as a short one.
-- **Import your blueprint automations:** convert automations made with the *Lutron Pico Universal Actions (Event Entities)* blueprint in one step. Buttons, actions and timing carry over, and the old automation is turned off for you.
+- **Import your blueprint automations:** convert automations made with the *Lutron Pico Universal Actions (Event Entities)* blueprint one at a time or all at once. Buttons, actions and timing carry over, the old automations are turned off for you, and remotes can read presses straight from Lutron.
+- **Device triggers:** use "Living Room Remote: Middle button double pressed" in your own automations when you need one.
+- **Repairs:** you're told if an imported blueprint automation gets turned back on (presses would run twice), or if a button's event entity or Pico disappears.
 - **Gesture event entities:** each button also gets an event entity that reports `short_press`, `double_press`, `long_press` and `long_release`, so presses show up in the logbook and history.
 - **Lutron Caséta Picos built in:** pick a Pico from the core Lutron Caséta integration and its buttons are set up for you. No extra integration needed.
 - **Works with any press/release event entity** too, so Zigbee, ESPHome and other remotes work as well.
@@ -59,7 +61,11 @@ Pick the Pico. Its buttons are added automatically, and presses are read straigh
 
 Pick an automation made with the Pico blueprint. Its button entities, every short, double and long-press action, and its timing are copied over. Leave **Turn off the original automation** checked so presses don't run twice. Nothing is deleted.
 
-Repeat for each remote.
+If every button belongs to a Pico in the Lutron Caséta integration, you're asked whether to read presses straight from Lutron. That's recommended, since the remote then doesn't need its event entities.
+
+### Import all Pico blueprint automations
+
+Lists every Pico blueprint automation that hasn't been imported yet, with all of them selected. Each one becomes its own remote. Turn on **Read presses from Lutron when possible** to set up Pico-backed remotes wherever that works.
 
 ### Set up a remote from event entities
 
@@ -83,7 +89,7 @@ Living Room Remote                ⚙  ⋮
 
 | Control | What it does |
 | --- | --- |
-| ✎ next to a button | Set its short press, double press, long press and release-after-long-press actions, whether the long press repeats while held, and which event entities feed it. |
+| ✎ next to a button | Set its short press, double press, long press and release-after-long-press actions, whether the long press repeats while held, whether to detect every gesture, and which event entities feed it. |
 | ⋮ next to a button | Delete that button. Its gesture entity is removed too. |
 | ⚙ on the remote | Click timing for the whole remote: double-press window, hold time and repeat interval. |
 | ⋮ on the remote → **Add button** | Add a button you skipped during setup. |
@@ -94,6 +100,12 @@ Living Room Remote                ⚙  ⋮
 Remotes imported from the blueprint use event entities from lutron-caseta-events. To read presses straight from the Lutron Caséta integration instead, open **Reconfigure** on the remote and pick its Pico. If the event entities belong to the Pico's device, it's already filled in. Every button keeps its actions, and once all your remotes are switched you no longer need lutron-caseta-events.
 
 Actions get these variables for templates: `remote` (the remote's name), `button` (`on`, `raise`, `stop`, `lower`, `off`, `button_1` … `button_4`) and `gesture`.
+
+### Using a button in your own automations
+
+Each remote is a device with triggers for every button and gesture, such as *"Middle button" double pressed*. Pick the remote as the device in the automation editor's trigger list.
+
+A button only waits for double and long presses when it has an action for them, so its short presses stay instant. To use a double or long press only from an automation, turn on **Detect every gesture** on that button. Its short presses then wait briefly for a possible second press.
 
 ### Hold-to-dim example
 
@@ -125,7 +137,7 @@ Remotes set up with 1.0.0 convert automatically the first time Home Assistant st
 
 ## Notes
 
-- Gesture event entities only report gestures the remote is watching for. A button with no double-press action never reports `double_press`, because it doesn't wait for one.
+- Gesture event entities and device triggers only report gestures the button is watching for. A button with no double-press action never reports `double_press` unless **Detect every gesture** is on.
 - If a release event goes missing, the next press resets the button, and repeat stops after 30 seconds, so a button can't get stuck.
 
 ## License

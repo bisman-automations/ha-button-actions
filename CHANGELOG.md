@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-07
+
+### Added
+
+- Device triggers for every button and gesture, such as *"Middle button" double pressed*, for use in your own automations.
+- **Detect every gesture** option on a button, so double and long presses are reported to device triggers and the gesture entity even without an action for them.
+- Repairs: a fixable issue when the blueprint automation a remote was imported from is turned back on, and a warning when a button's event entity or a remote's Pico no longer exists. Issues clear by themselves once resolved.
+- **Import all Pico blueprint automations** in one step, optionally reading presses from Lutron wherever possible.
+- Importing a single blueprint automation offers to read presses straight from Lutron when every button belongs to one Pico.
+
 ## [1.2.0] - 2026-10-07
 
 ### Added
@@ -54,7 +64,8 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/bisman-automations/ha-button-actions/releases/tag/v1.0.0

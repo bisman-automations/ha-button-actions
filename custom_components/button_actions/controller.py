@@ -19,6 +19,7 @@ from homeassistant.core import (
     callback,
 )
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.script import (
     SCRIPT_MODE_PARALLEL,
@@ -28,6 +29,7 @@ from homeassistant.helpers.script import (
 
 from .const import (
     CONF_ACTIONS,
+    CONF_DETECT_ALL,
     CONF_DOUBLE_MS,
     CONF_ENTITIES,
     CONF_HOLD_MS,
@@ -44,6 +46,7 @@ from .const import (
     DEFAULT_REPEAT_MS,
     DOMAIN,
     GESTURE_DOUBLE,
+    GESTURE_EVENT,
     GESTURE_HOLD_REPEAT,
     GESTURE_LONG,
     GESTURE_LONG_RELEASE,
@@ -74,6 +77,7 @@ class ButtonConfig:
     entities: list[str]
     actions: dict[str, list[dict[str, Any]]]
     repeat: bool
+    detect_all: bool = False
 
 
 def buttons_from_entry(entry: ConfigEntry) -> list[ButtonConfig]:
@@ -84,6 +88,7 @@ def buttons_from_entry(entry: ConfigEntry) -> list[ButtonConfig]:
             entities=list(sub.data.get(CONF_ENTITIES, [])),
             actions=dict(sub.data.get(CONF_ACTIONS, {})),
             repeat=bool(sub.data.get(CONF_REPEAT, False)),
+            detect_all=bool(sub.data.get(CONF_DETECT_ALL, False)),
         )
         for sub in entry.subentries.values()
         if sub.subentry_type == SUBENTRY_BUTTON and sub.data.get(CONF_SLOT) in SLOTS
@@ -100,8 +105,10 @@ def settings_for_button(
         hold_ms=int(options.get(CONF_HOLD_MS, DEFAULT_HOLD_MS)),
         double_ms=int(options.get(CONF_DOUBLE_MS, DEFAULT_DOUBLE_MS)),
         repeat_ms=int(options.get(CONF_REPEAT_MS, DEFAULT_REPEAT_MS)),
-        detect_double=bool(button.actions.get(GESTURE_DOUBLE)),
-        detect_hold=has_long or bool(button.actions.get(GESTURE_LONG_RELEASE)),
+        detect_double=button.detect_all or bool(button.actions.get(GESTURE_DOUBLE)),
+        detect_hold=button.detect_all
+        or has_long
+        or bool(button.actions.get(GESTURE_LONG_RELEASE)),
         repeat=button.repeat and has_long,
     )
 
@@ -271,6 +278,22 @@ class ButtonActionsController:
             detector.release()
 
     @callback
+    def _fire_gesture_event(self, slot: str, gesture: str) -> None:
+        """Back the device triggers ("On button double pressed")."""
+        device = dr.async_get(self.hass).async_get_device(
+            identifiers={(DOMAIN, self.entry.entry_id)}
+        )
+        self.hass.bus.async_fire(
+            GESTURE_EVENT,
+            {
+                CONF_DEVICE_ID: device.id if device else None,
+                "remote": self.entry.title,
+                "button": slot,
+                "gesture": gesture,
+            },
+        )
+
+    @callback
     def _handle_lutron_event(self, event: Event) -> None:
         """Core Lutron fires one event per press and per release."""
         if (found := self._detectors.get(event.data.get("button_type"))) is None:
@@ -291,6 +314,7 @@ class ButtonActionsController:
         else:
             if (listener := self._gesture_listeners.get(slot)) is not None:
                 listener(gesture)
+            self._fire_gesture_event(slot, gesture)
             script = self._scripts.get((slot, gesture))
         if script is None:
             return

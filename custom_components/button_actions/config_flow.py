@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import copy
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import (
+    SOURCE_IMPORT,
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
@@ -30,6 +32,7 @@ from .const import (
     BLUEPRINT_ENTITY_INPUTS,
     BLUEPRINT_GESTURE_PREFIXES,
     CONF_ACTIONS,
+    CONF_DETECT_ALL,
     CONF_DOUBLE_MS,
     CONF_ENTITIES,
     CONF_HOLD_MS,
@@ -40,6 +43,7 @@ from .const import (
     CONF_REPEAT_MS,
     CONF_SLOT,
     CONF_SOURCE,
+    CONF_SOURCE_AUTOMATION,
     DEFAULT_DOUBLE_MS,
     DEFAULT_HOLD_MS,
     DEFAULT_PRESS_EVENT,
@@ -61,6 +65,8 @@ _LOGGER = logging.getLogger(__name__)
 
 CONF_AUTOMATION = "automation"
 CONF_DISABLE_SOURCE = "disable_source"
+CONF_AUTOMATIONS = "automations"
+CONF_USE_PICO = "use_pico"
 
 _EVENT_ENTITIES = selector.EntitySelector(
     selector.EntitySelectorConfig(domain="event", multiple=True)
@@ -150,6 +156,7 @@ def _actions_schema() -> dict[vol.Marker, Any]:
     return {
         **{vol.Optional(gesture): selector.ActionSelector() for gesture in GESTURES},
         vol.Optional(CONF_REPEAT): selector.BooleanSelector(),
+        vol.Optional(CONF_DETECT_ALL): selector.BooleanSelector(),
     }
 
 
@@ -171,13 +178,18 @@ async def _async_actions_from_input(
 
 
 def _button_data(
-    slot: str, entities: list[str], actions: dict[str, list[Any]], repeat: bool
+    slot: str,
+    entities: list[str],
+    actions: dict[str, list[Any]],
+    repeat: bool,
+    detect_all: bool = False,
 ) -> dict[str, Any]:
     return {
         CONF_SLOT: slot,
         CONF_ENTITIES: entities,
         CONF_ACTIONS: actions,
         CONF_REPEAT: repeat,
+        CONF_DETECT_ALL: detect_all,
     }
 
 
@@ -286,6 +298,133 @@ def parse_blueprint_inputs(
     return subentries, options
 
 
+def _common_lutron_device(hass: HomeAssistant, entities: list[str]) -> str | None:
+    """The Lutron Pico every one of these entities belongs to, if there is one."""
+    devices = {lutron_device_for_entities(hass, [entity]) for entity in entities}
+    if len(devices) == 1 and None not in devices:
+        return devices.pop()
+    return None
+
+
+@dataclass(slots=True)
+class PreparedImport:
+    """A blueprint automation converted into a remote, ready to create."""
+
+    automation: str
+    title: str
+    subentries: list[ConfigSubentryData]
+    options: dict[str, Any]
+    # Set when every button maps onto one core Lutron Pico.
+    pico: str | None = None
+    pico_buttons: list[str] | None = None
+
+    def entry_args(self, use_pico: bool) -> dict[str, Any]:
+        """Arguments for async_create_entry."""
+        if use_pico and self.pico:
+            return {
+                "title": self.title,
+                "data": {
+                    CONF_SOURCE: SOURCE_LUTRON,
+                    CONF_DEVICE_ID: self.pico,
+                    CONF_PICO_BUTTONS: self.pico_buttons,
+                    CONF_SOURCE_AUTOMATION: self.automation,
+                },
+                "options": self.options,
+                "subentries": [
+                    ConfigSubentryData(
+                        data={**sub["data"], CONF_ENTITIES: []},
+                        subentry_type=sub["subentry_type"],
+                        title=sub["title"],
+                        unique_id=sub["unique_id"],
+                    )
+                    for sub in self.subentries
+                ],
+            }
+        return {
+            "title": self.title,
+            "data": {
+                CONF_SOURCE: SOURCE_EVENT_ENTITY,
+                CONF_PRESS_EVENT: DEFAULT_PRESS_EVENT,
+                CONF_RELEASE_EVENT: DEFAULT_RELEASE_EVENT,
+                CONF_SOURCE_AUTOMATION: self.automation,
+            },
+            "options": self.options,
+            "subentries": self.subentries,
+        }
+
+
+async def async_prepare_import(hass: HomeAssistant, automation: str) -> PreparedImport:
+    """Read a blueprint automation and work out how it can be imported."""
+    inputs = await _async_blueprint_inputs(hass, automation)
+    subentries, options = parse_blueprint_inputs(inputs)
+    state = hass.states.get(automation)
+    prepared = PreparedImport(
+        automation=automation,
+        title=state.name if state else automation,
+        subentries=subentries,
+        options=options,
+    )
+    entities = [e for sub in subentries for e in sub["data"][CONF_ENTITIES]]
+    if pico := _common_lutron_device(hass, entities):
+        buttons = await async_pico_buttons(hass, pico)
+        if all(sub["data"][CONF_SLOT] in buttons for sub in subentries):
+            prepared.pico = pico
+            prepared.pico_buttons = buttons
+    return prepared
+
+
+async def _async_find_blueprint_remotes(hass: HomeAssistant) -> dict[str, str]:
+    """Pico blueprint automations not imported yet, as {entity_id: name}."""
+    path = hass.config.path("automations.yaml")
+    try:
+        automations = await hass.async_add_executor_job(load_yaml, path)
+    except (HomeAssistantError, FileNotFoundError):
+        return {}
+    if not isinstance(automations, list):
+        return {}
+
+    registry = er.async_get(hass)
+    in_use = _entities_in_use(hass)
+    imported = {
+        entry.data.get(CONF_SOURCE_AUTOMATION)
+        for entry in hass.config_entries.async_entries(DOMAIN)
+    }
+    found: dict[str, str] = {}
+    for item in automations:
+        if not isinstance(item, dict) or "id" not in item:
+            continue
+        inputs = (item.get("use_blueprint") or {}).get("input")
+        if not isinstance(inputs, dict) or not any(
+            key in inputs for key in BLUEPRINT_ENTITY_INPUTS
+        ):
+            continue
+        entity_id = registry.async_get_entity_id(
+            "automation", "automation", str(item["id"])
+        )
+        if entity_id is None or entity_id in imported:
+            continue
+        entities = [
+            entity
+            for key in BLUEPRINT_ENTITY_INPUTS
+            for entity in _as_list(inputs.get(key))
+        ]
+        if set(entities) & in_use or _pico_conflict(
+            hass, lutron_device_for_entities(hass, entities)
+        ):
+            continue
+        found[entity_id] = str(item.get("alias") or entity_id)
+    return found
+
+
+async def _async_turn_off(hass: HomeAssistant, automations: list[str]) -> None:
+    await hass.services.async_call(
+        "automation",
+        "turn_off",
+        {"entity_id": automations, "stop_actions": False},
+        blocking=True,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Config flow (one entry per remote)
 # ---------------------------------------------------------------------------
@@ -296,6 +435,11 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
     MINOR_VERSION = 2
+
+    def __init__(self) -> None:
+        """Initialize."""
+        self._pending: PreparedImport | None = None
+        self._disable_source = True
 
     @staticmethod
     @callback
@@ -316,7 +460,8 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Choose between importing an automation or starting fresh."""
         return self.async_show_menu(
-            step_id="user", menu_options=["lutron", "import_blueprint", "manual"]
+            step_id="user",
+            menu_options=["lutron", "import_blueprint", "import_all", "manual"],
         )
 
     async def async_step_lutron(
@@ -478,31 +623,17 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             automation = user_input[CONF_AUTOMATION]
             try:
-                inputs = await _async_blueprint_inputs(self.hass, automation)
+                prepared = await async_prepare_import(self.hass, automation)
             except NotABlueprintRemote:
                 errors[CONF_AUTOMATION] = "not_blueprint"
             else:
-                subentries, options = parse_blueprint_inputs(inputs)
-                errors = await self._async_check(subentries)
+                errors = await self._async_check(prepared.subentries)
                 if not errors:
-                    if user_input.get(CONF_DISABLE_SOURCE, True):
-                        await self.hass.services.async_call(
-                            "automation",
-                            "turn_off",
-                            {"entity_id": automation, "stop_actions": False},
-                            blocking=True,
-                        )
-                    state = self.hass.states.get(automation)
-                    return self.async_create_entry(
-                        title=state.name if state else automation,
-                        data={
-                            CONF_SOURCE: SOURCE_EVENT_ENTITY,
-                            CONF_PRESS_EVENT: DEFAULT_PRESS_EVENT,
-                            CONF_RELEASE_EVENT: DEFAULT_RELEASE_EVENT,
-                        },
-                        options=options,
-                        subentries=subentries,
-                    )
+                    self._pending = prepared
+                    self._disable_source = user_input.get(CONF_DISABLE_SOURCE, True)
+                    if prepared.pico:
+                        return await self.async_step_import_choice()
+                    return await self._async_finish_import(use_pico=False)
 
         return self.async_show_form(
             step_id="import_blueprint",
@@ -518,6 +649,102 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
         )
+
+    async def async_step_import_choice(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Offer to read presses straight from the Pico."""
+        assert self._pending is not None
+        return self.async_show_menu(
+            step_id="import_choice",
+            menu_options=["import_pico", "import_entities"],
+            description_placeholders={"remote": self._pending.title},
+        )
+
+    async def async_step_import_pico(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Import, reading presses straight from core Lutron."""
+        return await self._async_finish_import(use_pico=True)
+
+    async def async_step_import_entities(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Import, keeping the blueprint's event entities."""
+        return await self._async_finish_import(use_pico=False)
+
+    async def _async_finish_import(self, use_pico: bool) -> ConfigFlowResult:
+        prepared = self._pending
+        assert prepared is not None
+        if self._disable_source:
+            await _async_turn_off(self.hass, [prepared.automation])
+        return self.async_create_entry(**prepared.entry_args(use_pico))
+
+    async def async_step_import_all(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Import every Pico blueprint automation at once."""
+        found = await _async_find_blueprint_remotes(self.hass)
+        if not found:
+            return self.async_abort(reason="no_blueprint_automations")
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            selected = [a for a in user_input.get(CONF_AUTOMATIONS, []) if a in found]
+            prepared_all: list[PreparedImport] = []
+            for automation in selected:
+                try:
+                    prepared = await async_prepare_import(self.hass, automation)
+                except NotABlueprintRemote:
+                    continue
+                if not await self._async_check(prepared.subentries):
+                    prepared_all.append(prepared)
+            if not prepared_all:
+                errors["base"] = "nothing_to_import"
+            else:
+                use_pico = user_input.get(CONF_USE_PICO, True)
+                if user_input.get(CONF_DISABLE_SOURCE, True):
+                    await _async_turn_off(
+                        self.hass, [p.automation for p in prepared_all]
+                    )
+                # A flow creates one entry; hand the rest to import flows.
+                for prepared in prepared_all[1:]:
+                    self.hass.async_create_task(
+                        self.hass.config_entries.flow.async_init(
+                            DOMAIN,
+                            context={"source": SOURCE_IMPORT},
+                            data=prepared.entry_args(use_pico),
+                        )
+                    )
+                return self.async_create_entry(**prepared_all[0].entry_args(use_pico))
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_AUTOMATIONS, default=list(found)
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            selector.SelectOptionDict(value=entity_id, label=name)
+                            for entity_id, name in found.items()
+                        ],
+                        multiple=True,
+                        mode=selector.SelectSelectorMode.LIST,
+                    )
+                ),
+                vol.Optional(CONF_USE_PICO, default=True): selector.BooleanSelector(),
+                vol.Optional(
+                    CONF_DISABLE_SOURCE, default=True
+                ): selector.BooleanSelector(),
+            }
+        )
+        return self.async_show_form(
+            step_id="import_all", data_schema=schema, errors=errors
+        )
+
+    async def async_step_import(self, import_data: dict[str, Any]) -> ConfigFlowResult:
+        """Create one remote handed over by Import all."""
+        return self.async_create_entry(**import_data)
 
     async def async_step_manual(
         self, user_input: dict[str, Any] | None = None
@@ -683,6 +910,7 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
                         self._entities,
                         actions,
                         bool(user_input.get(CONF_REPEAT)),
+                        bool(user_input.get(CONF_DETECT_ALL)),
                     ),
                     unique_id=self._slot,
                 )
@@ -720,7 +948,11 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
                     entry,
                     subentry,
                     data=_button_data(
-                        slot, entities, actions, bool(user_input.get(CONF_REPEAT))
+                        slot,
+                        entities,
+                        actions,
+                        bool(user_input.get(CONF_REPEAT)),
+                        bool(user_input.get(CONF_DETECT_ALL)),
                     ),
                 )
 
@@ -728,6 +960,7 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
             CONF_ENTITIES: subentry.data.get(CONF_ENTITIES, []),
             **subentry.data.get(CONF_ACTIONS, {}),
             CONF_REPEAT: subentry.data.get(CONF_REPEAT, False),
+            CONF_DETECT_ALL: subentry.data.get(CONF_DETECT_ALL, False),
         }
         schema = vol.Schema(
             _actions_schema()

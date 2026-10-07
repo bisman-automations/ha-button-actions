@@ -3,10 +3,11 @@
     "step": {
       "user": {
         "title": "Add a button remote",
-        "description": "Use a Pico from the Lutron Caséta integration, import an existing Pico blueprint automation, or set up a remote from event entities.",
+        "description": "Use a Pico from the Lutron Caséta integration, import Pico blueprint automations, or set up a remote from event entities.",
         "menu_options": {
           "lutron": "Lutron Caséta Pico",
           "import_blueprint": "Import from a Pico blueprint automation",
+          "import_all": "Import all Pico blueprint automations",
           "manual": "Set up a remote from event entities"
         }
       },
@@ -85,6 +86,27 @@
           "name": "Name",
           "device_id": "Pico"
         }
+      },
+      "import_choice": {
+        "title": "Read presses from Lutron?",
+        "description": "Every button on {remote} belongs to a Pico in the Lutron Caséta integration. Button Actions can read presses straight from Lutron, so this remote won't need its event entities anymore.",
+        "menu_options": {
+          "import_pico": "Read presses from Lutron (recommended)",
+          "import_entities": "Keep using the event entities"
+        }
+      },
+      "import_all": {
+        "title": "Import all Pico blueprint automations",
+        "description": "Each automation becomes its own remote with its buttons, actions and timing.",
+        "data": {
+          "automations": "Automations",
+          "use_pico": "Read presses from Lutron when possible",
+          "disable_source": "Turn off the original automations"
+        },
+        "data_description": {
+          "use_pico": "When all of a remote's buttons belong to one Pico in the Lutron Caséta integration, read presses straight from Lutron instead of the event entities.",
+          "disable_source": "Recommended, so each press doesn't run twice. Nothing is deleted."
+        }
       }
     },
     "error": {
@@ -94,10 +116,12 @@
       "invalid_action": "One of the actions is invalid. Check the logs for details.",
       "pico_in_use": "This Pico already drives another remote, so every press would run twice.",
       "not_a_pico": "This device doesn't have Pico buttons Button Actions can use.",
-      "buttons_missing": "This Pico doesn't have every button this remote uses. Missing: {missing}."
+      "buttons_missing": "This Pico doesn't have every button this remote uses. Missing: {missing}.",
+      "nothing_to_import": "None of the selected automations could be imported. They may already be set up, or have invalid actions."
     },
     "abort": {
-      "reconfigure_successful": "Remote updated."
+      "reconfigure_successful": "Remote updated.",
+      "no_blueprint_automations": "There are no Pico blueprint automations left to import."
     }
   },
   "options": {
@@ -144,14 +168,16 @@
             "double_press": "Double press",
             "long_press": "Long press",
             "long_release": "Release after long press",
-            "repeat": "Repeat long press while held"
+            "repeat": "Repeat long press while held",
+            "detect_all": "Detect every gesture"
           },
           "data_description": {
             "short_press": "Runs on release. Fires instantly unless a double-press action is set, in which case it waits briefly for a second press.",
             "double_press": "Runs on the second press. Leave empty to keep short presses instant.",
             "long_press": "Runs once the button has been held for the hold time.",
             "long_release": "Runs when a held button is let go, for example to stop a cover.",
-            "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume."
+            "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume.",
+            "detect_all": "Watch for double and long presses even without an action for them, so automations using this button's device triggers see them. Short presses then wait briefly for a possible second press."
           }
         },
         "reconfigure": {
@@ -163,7 +189,8 @@
             "double_press": "Double press",
             "long_press": "Long press",
             "long_release": "Release after long press",
-            "repeat": "Repeat long press while held"
+            "repeat": "Repeat long press while held",
+            "detect_all": "Detect every gesture"
           },
           "data_description": {
             "entities": "The event entities this button reports through. Pick several to have multiple remotes share these actions.",
@@ -171,7 +198,8 @@
             "double_press": "Runs on the second press. Leave empty to keep short presses instant.",
             "long_press": "Runs once the button has been held for the hold time.",
             "long_release": "Runs when a held button is let go, for example to stop a cover.",
-            "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume."
+            "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume.",
+            "detect_all": "Watch for double and long presses even without an action for them, so automations using this button's device triggers see them. Short presses then wait briefly for a possible second press."
           }
         }
       },
@@ -320,6 +348,46 @@
           }
         }
       }
+    }
+  },
+  "issues": {
+    "automation_enabled": {
+      "title": "{automation} is on again",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Turn off {automation}?",
+            "description": "{remote} was imported from this automation, so with both on, every button press runs twice. Turning the automation off fixes that. Nothing is deleted, and you can turn it back on anytime."
+          }
+        }
+      }
+    },
+    "entities_missing": {
+      "title": "{remote} is missing event entities",
+      "description": "These event entities no longer exist, so the buttons that use them can't fire: {entities}. If they were renamed or the remote was re-paired, edit those buttons on the {remote} entry and pick the new entities."
+    },
+    "pico_missing": {
+      "title": "{remote}'s Pico is gone",
+      "description": "The Pico this remote reads presses from is no longer in the Lutron Caséta integration. If you replaced or re-paired it, open Reconfigure on {remote} and pick the new Pico. Every button keeps its actions."
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "short_press": "\"{subtype}\" short pressed",
+      "double_press": "\"{subtype}\" double pressed",
+      "long_press": "\"{subtype}\" long pressed",
+      "long_release": "\"{subtype}\" released after long press"
+    },
+    "trigger_subtype": {
+      "on": "On button",
+      "raise": "Raise button",
+      "stop": "Middle button",
+      "lower": "Lower button",
+      "off": "Off button",
+      "button_1": "Scene button 1",
+      "button_2": "Scene button 2",
+      "button_3": "Scene button 3",
+      "button_4": "Scene button 4"
     }
   }
 }

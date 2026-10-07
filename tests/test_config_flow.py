@@ -271,6 +271,7 @@ async def test_add_button(hass: HomeAssistant) -> None:
         CONF_ENTITIES: ["event.office_up"],
         CONF_ACTIONS: {"long_press": LONG_ACTION},
         CONF_REPEAT: True,
+        "detect_all": False,
     }
 
 
