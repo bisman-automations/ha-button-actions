@@ -84,6 +84,15 @@ CONF_SLOT: Final = "slot"
 CONF_ENTITIES: Final = "entities"
 CONF_ACTIONS: Final = "actions"  # {gesture: [action, ...]}
 CONF_REPEAT: Final = "repeat"  # bool: long-press repeats while held
+# bool: watch for double and long presses even without an action for them,
+# so device triggers and the gesture entity see every gesture.
+CONF_DETECT_ALL: Final = "detect_all"
+
+# Fired for every gesture; backs the device triggers.
+GESTURE_EVENT: Final = "button_actions_gesture"
+
+# Entry data: the blueprint automation a remote was imported from.
+CONF_SOURCE_AUTOMATION: Final = "source_automation"
 
 # ---------------------------------------------------------------------------
 # Remote-wide options

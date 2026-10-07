@@ -20,6 +20,7 @@ from .const import (
     SUBENTRY_BUTTON,
 )
 from .controller import ButtonActionsController
+from .issues import async_delete_issues, async_track_issues
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ async def async_setup_entry(
     _async_remove_stale_entities(hass, entry, controller.slots)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await controller.async_start()
+    async_track_issues(hass, entry, controller)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
@@ -49,6 +51,7 @@ async def async_unload_entry(
 ) -> bool:
     """Unload one remote."""
     await entry.runtime_data.async_stop()
+    async_delete_issues(hass, entry.entry_id)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
