@@ -262,3 +262,27 @@ async def test_migrate_from_1_0(hass: HomeAssistant) -> None:
     _fire(hass, RAISE, "press")
     await _advance(hass, 0.65)
     assert len(calls) == 1
+
+
+async def test_first_press_on_never_used_button(hass: HomeAssistant) -> None:
+    """A button that has never fired sits at "unknown"; its first press counts."""
+    calls = async_mock_service(hass, "light", "turn_on")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Fresh Remote",
+        minor_version=2,
+        data={CONF_PRESS_EVENT: "press", CONF_RELEASE_EVENT: "release"},
+        options={CONF_HOLD_MS: 600, CONF_DOUBLE_MS: 300, CONF_REPEAT_MS: 200},
+        subentries_data=[
+            _button("on", ["event.fresh_on"], {"short_press": _light_on({})})
+        ],
+    )
+    hass.states.async_set("event.fresh_on", "unknown")
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    _fire(hass, "event.fresh_on", "press")
+    _fire(hass, "event.fresh_on", "release")
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert len(calls) == 1

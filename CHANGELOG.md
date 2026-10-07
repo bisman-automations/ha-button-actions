@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-07
+
+### Added
+
+- **Duplicate an existing remote** from setup: copies every button's actions, repeat and detection settings and the click timing, with optional find-and-replace across all copied actions. The copy can read presses from a Lutron Caséta Pico or its own event entities.
+- **Download diagnostics** for a remote: its config, each button's detection settings and source entity states, live gesture state, and any open Repairs issues.
+- Debug logging of every source state change a remote receives, to help track down missed presses.
+- Screenshots in the README.
+
+### Fixed
+
+- The first press on a button that had never been pressed before was ignored. A source entity that has never fired sits at `unknown`, and the change from `unknown` was mistaken for a restore after restart.
+
 ## [1.3.0] - 2026-10-07
 
 ### Added
@@ -64,7 +77,8 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.0.0...v1.1.0

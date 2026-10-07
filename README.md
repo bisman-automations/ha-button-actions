@@ -17,6 +17,10 @@ The usual way to get click, double-click and hold out of a Pico is a blueprint a
 
 Button Actions runs a small state machine per button inside Home Assistant, so every button is independent, timing is tight, and each remote is just a device you configure.
 
+<p align="center">
+  <img src="docs/images/integration-page.png" alt="The Button Actions integration page, with each remote's buttons listed under it" width="640">
+</p>
+
 ## Features
 
 - **Gestures per button:** short press, double press, long press, and release after a long press.
@@ -29,6 +33,8 @@ Button Actions runs a small state machine per button inside Home Assistant, so e
 - **Gesture event entities:** each button also gets an event entity that reports `short_press`, `double_press`, `long_press` and `long_release`, so presses show up in the logbook and history.
 - **Lutron Caséta Picos built in:** pick a Pico from the core Lutron Caséta integration and its buttons are set up for you. No extra integration needed.
 - **Works with any press/release event entity** too, so Zigbee, ESPHome and other remotes work as well.
+- **Duplicate a remote:** copy every button's actions to a new remote, with find-and-replace to retarget areas and entities in one step.
+- **Download diagnostics:** a remote's config and each button's live state in one file, for bug reports.
 
 ## Requirements
 
@@ -51,11 +57,11 @@ Copy `custom_components/button_actions` into your `config/custom_components` fol
 
 ## Setup
 
-Go to **Settings → Devices & services → Add integration → Button Actions**. You can add a remote three ways.
+Go to **Settings → Devices & services → Add integration → Button Actions**. To add more remotes later, use **Add device** on the Button Actions page.
 
 ### Lutron Caséta Pico
 
-Pick the Pico. Its buttons are added automatically, and presses are read straight from the Lutron Caséta integration. Then use the ✎ next to each button to choose what it does.
+Pick the Pico. Its buttons are added automatically, and presses are read straight from the Lutron Caséta integration. Then use the ⚙ next to each button to choose what it does.
 
 ### Import from a blueprint automation
 
@@ -67,6 +73,12 @@ If every button belongs to a Pico in the Lutron Caséta integration, you're aske
 
 Lists every Pico blueprint automation that hasn't been imported yet, with all of them selected. Each one becomes its own remote. Turn on **Read presses from Lutron when possible** to set up Pico-backed remotes wherever that works.
 
+### Duplicate an existing remote
+
+Pick a remote to copy and give the copy a name. Every button's actions, its repeat and detection settings, and the click timing are copied over.
+
+Use **Find** and **Replace with** to change text in every copied action at once. For example, find `boys_bedroom` and replace it with `girls_bedroom` to retarget a whole remote's areas and lamps. Then choose where the copy reads presses from: a Lutron Caséta Pico, or its own event entities. The original remote isn't changed.
+
 ### Set up a remote from event entities
 
 Give the remote a name and pick the event entity for each button it has. Leave the rest empty. You can pick more than one entity for a button so several remotes share the same actions.
@@ -75,31 +87,26 @@ The press and release event types default to `press` and `release`, which is wha
 
 ## Configuring buttons
 
-Each remote lists its buttons right under it on the Button Actions integration page:
-
-```
-Living Room Remote                ⚙  ⋮
-  Living Room Remote  (device)       ⋮
-  On button                       ✎  ⋮
-  Raise button                    ✎  ⋮
-  Middle button                   ✎  ⋮
-  Lower button                    ✎  ⋮
-  Off button                      ✎  ⋮
-```
+Each remote lists its buttons right under it on the Button Actions integration page, as in the screenshot at the top.
 
 | Control | What it does |
 | --- | --- |
-| ✎ next to a button | Set its short press, double press, long press and release-after-long-press actions, whether the long press repeats while held, whether to detect every gesture, and which event entities feed it. |
+| ⚙ next to a button | Set its short press, double press, long press and release-after-long-press actions, whether the long press repeats while held, whether to detect every gesture, and which event entities feed it. |
 | ⋮ next to a button | Delete that button. Its gesture entity is removed too. |
 | ⚙ on the remote | Click timing for the whole remote: double-press window, hold time and repeat interval. |
-| ⋮ on the remote → **Add button** | Add a button you skipped during setup. |
 | ⋮ on the remote → **Reconfigure** | Rename the remote, change its press and release event types, or switch it to a Lutron Caséta Pico. |
+| ⋮ on the remote → **Download diagnostics** | Save the remote's config and live button state, to attach to a bug report. |
+| **Add button** at the top of the page | Add a button you skipped during setup to one of your remotes. |
+
+<p align="center">
+  <img src="docs/images/button-form.png" alt="Editing a button: an action for each gesture, plus repeat and detection options" width="420">
+</p>
+
+Actions get these variables for templates: `remote` (the remote's name), `button` (`on`, `raise`, `stop`, `lower`, `off`, `button_1` … `button_4`) and `gesture`.
 
 ### Switching a remote to core Lutron
 
 Remotes imported from the blueprint use event entities from lutron-caseta-events. To read presses straight from the Lutron Caséta integration instead, open **Reconfigure** on the remote and pick its Pico. If the event entities belong to the Pico's device, it's already filled in. Every button keeps its actions, and once all your remotes are switched you no longer need lutron-caseta-events.
-
-Actions get these variables for templates: `remote` (the remote's name), `button` (`on`, `raise`, `stop`, `lower`, `off`, `button_1` … `button_4`) and `gesture`.
 
 ### Using a button in your own automations
 
