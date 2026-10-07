@@ -3,11 +3,12 @@
     "step": {
       "user": {
         "title": "Add a button remote",
-        "description": "Use a Pico from the Lutron Caséta integration, import Pico blueprint automations, or set up a remote from event entities.",
+        "description": "Use a Pico from the Lutron Caséta integration, import Pico blueprint automations, copy a remote you already have, or set up a remote from event entities.",
         "menu_options": {
           "lutron": "Lutron Caséta Pico",
           "import_blueprint": "Import from a Pico blueprint automation",
           "import_all": "Import all Pico blueprint automations",
+          "duplicate": "Duplicate an existing remote",
           "manual": "Set up a remote from event entities"
         }
       },
@@ -107,6 +108,48 @@
           "use_pico": "When all of a remote's buttons belong to one Pico in the Lutron Caséta integration, read presses straight from Lutron instead of the event entities.",
           "disable_source": "Recommended, so each press doesn't run twice. Nothing is deleted."
         }
+      },
+      "duplicate": {
+        "title": "Duplicate a remote",
+        "description": "Copies every button's actions and the click timing to a new remote. You'll choose where the new remote reads presses from next.",
+        "data": {
+          "remote": "Remote to copy",
+          "name": "Name",
+          "find": "Find",
+          "replace": "Replace with"
+        },
+        "data_description": {
+          "find": "Optional. Text to change in every copied action, such as an area or entity ID like boys_bedroom.",
+          "replace": "What to change it to, such as girls_bedroom."
+        }
+      },
+      "duplicate_source": {
+        "title": "Where should {remote} read presses from?",
+        "menu_options": {
+          "duplicate_pico": "A Lutron Caséta Pico",
+          "duplicate_entities": "Event entities"
+        }
+      },
+      "duplicate_pico": {
+        "title": "Pick the Pico",
+        "data": {
+          "device_id": "Pico"
+        }
+      },
+      "duplicate_entities": {
+        "title": "Pick the event entities",
+        "description": "Choose the event entities for each button on the new remote.",
+        "data": {
+          "on": "On / top button",
+          "raise": "Raise / up button",
+          "stop": "Middle button",
+          "lower": "Lower / down button",
+          "off": "Off / bottom button",
+          "button_1": "Scene button 1",
+          "button_2": "Scene button 2",
+          "button_3": "Scene button 3",
+          "button_4": "Scene button 4"
+        }
       }
     },
     "error": {
@@ -121,7 +164,8 @@
     },
     "abort": {
       "reconfigure_successful": "Remote updated.",
-      "no_blueprint_automations": "There are no Pico blueprint automations left to import."
+      "no_blueprint_automations": "There are no Pico blueprint automations left to import.",
+      "no_remotes": "There are no remotes to copy yet."
     }
   },
   "options": {

@@ -207,6 +207,26 @@ class ButtonActionsController:
             await script.async_stop()
         self._scripts.clear()
 
+    @callback
+    def diagnostics(self) -> dict[str, Any]:
+        """Live state for download diagnostics."""
+        return {
+            "source": self.source,
+            "listening": self._unsub is not None,
+            "detectors": {
+                key: {"button": slot, "state": detector.state}
+                for key, (slot, detector) in self._detectors.items()
+            },
+            "compiled_actions": sorted(
+                f"{slot}.{gesture}" for slot, gesture in self._scripts
+            ),
+            "running_actions": sorted(
+                f"{slot}.{gesture}"
+                for (slot, gesture), script in self._scripts.items()
+                if script.is_running
+            ),
+        }
+
     # -- internals ------------------------------------------------------------
 
     async def _async_compile(
@@ -258,13 +278,23 @@ class ButtonActionsController:
         if (found := self._detectors.get(entity_id)) is None:
             return
         _slot, detector = found
+        _LOGGER.debug(
+            "%s: %s %s -> %s (%s)",
+            self.entry.title,
+            entity_id,
+            old_state.state if old_state else None,
+            new_state.state if new_state else None,
+            new_state.attributes.get("event_type") if new_state else None,
+        )
 
         if new_state is None or new_state.state in _IGNORED_STATES:
             detector.reset()
             return
-        # Coming back from unavailable or a restart restores the last event;
-        # that is not a new button press.
-        if old_state is None or old_state.state in _IGNORED_STATES:
+        # An entity being added (startup) or coming back from unavailable
+        # restores its last event; that is not a new button press. From
+        # "unknown", though, it is: that's a button that has never been
+        # pressed, so this is its first real event.
+        if old_state is None or old_state.state == STATE_UNAVAILABLE:
             return
         # An event entity's state is the time of the last event, so an
         # unchanged state means nothing new happened.

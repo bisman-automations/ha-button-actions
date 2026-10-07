@@ -67,6 +67,9 @@ CONF_AUTOMATION = "automation"
 CONF_DISABLE_SOURCE = "disable_source"
 CONF_AUTOMATIONS = "automations"
 CONF_USE_PICO = "use_pico"
+CONF_REMOTE = "remote"
+CONF_FIND = "find"
+CONF_REPLACE = "replace"
 
 _EVENT_ENTITIES = selector.EntitySelector(
     selector.EntitySelectorConfig(domain="event", multiple=True)
@@ -194,10 +197,14 @@ def _button_data(
 
 
 def _button_subentry(
-    slot: str, entities: list[str], actions: dict[str, list[Any]], repeat: bool
+    slot: str,
+    entities: list[str],
+    actions: dict[str, list[Any]],
+    repeat: bool,
+    detect_all: bool = False,
 ) -> ConfigSubentryData:
     return ConfigSubentryData(
-        data=_button_data(slot, entities, actions, repeat),
+        data=_button_data(slot, entities, actions, repeat, detect_all),
         subentry_type=SUBENTRY_BUTTON,
         title=SLOT_TITLES[slot],
         unique_id=slot,
@@ -425,6 +432,71 @@ async def _async_turn_off(hass: HomeAssistant, automations: list[str]) -> None:
     )
 
 
+def replace_text(value: Any, find: str, replace: str) -> Any:
+    """Replace text in every string inside an action list."""
+    if isinstance(value, str):
+        return value.replace(find, replace)
+    if isinstance(value, list):
+        return [replace_text(item, find, replace) for item in value]
+    if isinstance(value, dict):
+        return {key: replace_text(item, find, replace) for key, item in value.items()}
+    return value
+
+
+@dataclass(slots=True)
+class RemoteCopy:
+    """A remote being duplicated: everything except where presses come from."""
+
+    title: str
+    options: dict[str, Any]
+    press_event: str
+    release_event: str
+    # One dict per button: slot, actions, repeat, detect_all.
+    buttons: list[dict[str, Any]]
+
+    def subentries(self, entities: dict[str, list[str]]) -> list[ConfigSubentryData]:
+        """Button subentries, fed by the given entities (empty for a Pico)."""
+        return [
+            _button_subentry(
+                button[CONF_SLOT],
+                entities.get(button[CONF_SLOT], []),
+                button[CONF_ACTIONS],
+                button[CONF_REPEAT],
+                button[CONF_DETECT_ALL],
+            )
+            for button in self.buttons
+        ]
+
+
+def copy_remote(
+    entry: ConfigEntry, title: str, find: str = "", replace: str = ""
+) -> RemoteCopy:
+    """Copy a remote's buttons, actions and timing, replacing text in actions."""
+    buttons = []
+    for sub in sorted(
+        (s for s in entry.subentries.values() if s.subentry_type == SUBENTRY_BUTTON),
+        key=lambda s: SLOTS.index(s.data[CONF_SLOT]),
+    ):
+        actions = copy.deepcopy(dict(sub.data.get(CONF_ACTIONS, {})))
+        if find:
+            actions = replace_text(actions, find, replace)
+        buttons.append(
+            {
+                CONF_SLOT: sub.data[CONF_SLOT],
+                CONF_ACTIONS: actions,
+                CONF_REPEAT: bool(sub.data.get(CONF_REPEAT, False)),
+                CONF_DETECT_ALL: bool(sub.data.get(CONF_DETECT_ALL, False)),
+            }
+        )
+    return RemoteCopy(
+        title=title,
+        options=dict(entry.options),
+        press_event=entry.data.get(CONF_PRESS_EVENT, DEFAULT_PRESS_EVENT),
+        release_event=entry.data.get(CONF_RELEASE_EVENT, DEFAULT_RELEASE_EVENT),
+        buttons=buttons,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Config flow (one entry per remote)
 # ---------------------------------------------------------------------------
@@ -440,6 +512,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         """Initialize."""
         self._pending: PreparedImport | None = None
         self._disable_source = True
+        self._copy: RemoteCopy | None = None
 
     @staticmethod
     @callback
@@ -461,7 +534,13 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         """Choose between importing an automation or starting fresh."""
         return self.async_show_menu(
             step_id="user",
-            menu_options=["lutron", "import_blueprint", "import_all", "manual"],
+            menu_options=[
+                "lutron",
+                "import_blueprint",
+                "import_all",
+                "duplicate",
+                "manual",
+            ],
         )
 
     async def async_step_lutron(
@@ -745,6 +824,142 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_import(self, import_data: dict[str, Any]) -> ConfigFlowResult:
         """Create one remote handed over by Import all."""
         return self.async_create_entry(**import_data)
+
+    async def async_step_duplicate(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Copy an existing remote's buttons, actions and timing."""
+        remotes = {
+            entry.entry_id: entry.title
+            for entry in self.hass.config_entries.async_entries(DOMAIN)
+            if any(
+                s.subentry_type == SUBENTRY_BUTTON for s in entry.subentries.values()
+            )
+        }
+        if not remotes:
+            return self.async_abort(reason="no_remotes")
+
+        if user_input is not None:
+            source = self.hass.config_entries.async_get_entry(user_input[CONF_REMOTE])
+            if source is not None:
+                self._copy = copy_remote(
+                    source,
+                    user_input[CONF_NAME],
+                    user_input.get(CONF_FIND) or "",
+                    user_input.get(CONF_REPLACE) or "",
+                )
+                return await self.async_step_duplicate_source()
+
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_REMOTE): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            selector.SelectOptionDict(value=entry_id, label=title)
+                            for entry_id, title in sorted(
+                                remotes.items(), key=lambda item: item[1]
+                            )
+                        ],
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+                vol.Required(CONF_NAME): selector.TextSelector(),
+                vol.Optional(CONF_FIND): selector.TextSelector(),
+                vol.Optional(CONF_REPLACE): selector.TextSelector(),
+            }
+        )
+        return self.async_show_form(
+            step_id="duplicate",
+            data_schema=self.add_suggested_values_to_schema(schema, user_input),
+        )
+
+    async def async_step_duplicate_source(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Choose where the copy reads presses from."""
+        assert self._copy is not None
+        return self.async_show_menu(
+            step_id="duplicate_source",
+            menu_options=["duplicate_pico", "duplicate_entities"],
+            description_placeholders={"remote": self._copy.title},
+        )
+
+    async def async_step_duplicate_pico(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Point the copy at a Lutron Caséta Pico."""
+        copied = self._copy
+        assert copied is not None
+        errors: dict[str, str] = {}
+        placeholders = {"missing": ""}
+        if user_input is not None:
+            device_id = user_input[CONF_DEVICE_ID]
+            buttons = await async_pico_buttons(self.hass, device_id)
+            missing = [
+                b[CONF_SLOT] for b in copied.buttons if b[CONF_SLOT] not in buttons
+            ]
+            if error := _pico_conflict(self.hass, device_id):
+                errors[CONF_DEVICE_ID] = error
+            elif not buttons:
+                errors[CONF_DEVICE_ID] = "not_a_pico"
+            elif missing:
+                errors[CONF_DEVICE_ID] = "buttons_missing"
+                placeholders["missing"] = ", ".join(SLOT_TITLES[s] for s in missing)
+            else:
+                return self.async_create_entry(
+                    title=copied.title,
+                    data={
+                        CONF_SOURCE: SOURCE_LUTRON,
+                        CONF_DEVICE_ID: device_id,
+                        CONF_PICO_BUTTONS: buttons,
+                    },
+                    options=copied.options,
+                    subentries=copied.subentries({}),
+                )
+
+        return self.async_show_form(
+            step_id="duplicate_pico",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema({vol.Required(CONF_DEVICE_ID): _PICO_DEVICE}), user_input
+            ),
+            errors=errors,
+            description_placeholders=placeholders,
+        )
+
+    async def async_step_duplicate_entities(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick the event entities for each button on the copy."""
+        copied = self._copy
+        assert copied is not None
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            entities = {
+                b[CONF_SLOT]: _as_list(user_input.get(b[CONF_SLOT]))
+                for b in copied.buttons
+            }
+            subentries = copied.subentries(entities)
+            errors = await self._async_check(subentries)
+            if not errors:
+                return self.async_create_entry(
+                    title=copied.title,
+                    data={
+                        CONF_SOURCE: SOURCE_EVENT_ENTITY,
+                        CONF_PRESS_EVENT: copied.press_event,
+                        CONF_RELEASE_EVENT: copied.release_event,
+                    },
+                    options=copied.options,
+                    subentries=subentries,
+                )
+
+        schema = vol.Schema(
+            {vol.Required(b[CONF_SLOT]): _EVENT_ENTITIES for b in copied.buttons}
+        )
+        return self.async_show_form(
+            step_id="duplicate_entities",
+            data_schema=self.add_suggested_values_to_schema(schema, user_input),
+            errors=errors,
+        )
 
     async def async_step_manual(
         self, user_input: dict[str, Any] | None = None
