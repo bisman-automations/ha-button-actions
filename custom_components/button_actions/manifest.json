@@ -1,0 +1,14 @@
+{
+  "domain": "button_actions",
+  "name": "Button Actions",
+  "after_dependencies": ["automation"],
+  "codeowners": ["@donavanbecker"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/bisman-automations/ha-button-actions",
+  "integration_type": "helper",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/bisman-automations/ha-button-actions/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
