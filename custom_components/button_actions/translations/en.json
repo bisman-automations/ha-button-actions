@@ -3,10 +3,11 @@
     "step": {
       "user": {
         "title": "Add a button remote",
-        "description": "Import an existing Pico blueprint automation, or start a new remote from scratch.",
+        "description": "Use a Pico from the Lutron Caséta integration, import an existing Pico blueprint automation, or set up a remote from event entities.",
         "menu_options": {
+          "lutron": "Lutron Caséta Pico",
           "import_blueprint": "Import from a Pico blueprint automation",
-          "manual": "Set up a new remote"
+          "manual": "Set up a remote from event entities"
         }
       },
       "import_blueprint": {
@@ -50,13 +51,53 @@
           "press_event_type": "The event_type the source entity reports when a button goes down. Lutron uses press.",
           "release_event_type": "The event_type the source entity reports when a button comes up. Lutron uses release."
         }
+      },
+      "lutron": {
+        "title": "Lutron Caséta Pico",
+        "description": "Pick a Pico from the Lutron Caséta integration. Its buttons are added automatically, and presses are read straight from Lutron, so no other integration is needed.",
+        "data": {
+          "device_id": "Pico",
+          "name": "Name"
+        },
+        "data_description": {
+          "name": "Optional. Defaults to the Pico's name."
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure remote",
+        "description": "Rename this remote or change the event types its buttons report. To read presses straight from the Lutron Caséta integration instead, pick the Pico below; every button keeps its actions.",
+        "data": {
+          "name": "Name",
+          "press_event_type": "Press event type",
+          "release_event_type": "Release event type",
+          "device_id": "Switch to Lutron Caséta Pico"
+        },
+        "data_description": {
+          "device_id": "Optional. Once switched, this remote no longer uses its event entities, so other integrations that provide them are no longer needed for it.",
+          "press_event_type": "The event_type the source entity reports when a button goes down. Lutron uses press.",
+          "release_event_type": "The event_type the source entity reports when a button comes up. Lutron uses release."
+        }
+      },
+      "reconfigure_lutron": {
+        "title": "Reconfigure remote",
+        "description": "Rename this remote, or pick a different Pico if you replaced it. Every button keeps its actions.",
+        "data": {
+          "name": "Name",
+          "device_id": "Pico"
+        }
       }
     },
     "error": {
       "no_buttons": "Select at least one button.",
       "already_configured": "One of these event entities is already used by another button.",
       "not_blueprint": "This automation doesn't use the Lutron Pico Universal Actions blueprint.",
-      "invalid_action": "One of the actions is invalid. Check the logs for details."
+      "invalid_action": "One of the actions is invalid. Check the logs for details.",
+      "pico_in_use": "This Pico already drives another remote, so every press would run twice.",
+      "not_a_pico": "This device doesn't have Pico buttons Button Actions can use.",
+      "buttons_missing": "This Pico doesn't have every button this remote uses. Missing: {missing}."
+    },
+    "abort": {
+      "reconfigure_successful": "Remote updated."
     }
   },
   "options": {
@@ -86,7 +127,7 @@
       "step": {
         "user": {
           "title": "Add button",
-          "description": "Choose which button to add and the event entities it reports through.",
+          "description": "Choose which button to add. For remotes that use event entities, also pick the event entities it reports through.",
           "data": {
             "slot": "Button",
             "entities": "Event entities"

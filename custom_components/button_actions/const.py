@@ -16,6 +16,18 @@ CONF_RELEASE_EVENT: Final = "release_event_type"
 DEFAULT_PRESS_EVENT: Final = "press"
 DEFAULT_RELEASE_EVENT: Final = "release"
 
+# Where button presses come from. Entries without a source predate 1.2.0
+# and are event-entity remotes.
+CONF_SOURCE: Final = "source"
+SOURCE_EVENT_ENTITY: Final = "event_entity"
+SOURCE_LUTRON: Final = "lutron_caseta"
+CONF_PICO_BUTTONS: Final = "pico_buttons"  # slots the Pico physically has
+
+LUTRON_DOMAIN: Final = "lutron_caseta"
+LUTRON_BUTTON_EVENT: Final = "lutron_caseta_button_event"
+LUTRON_ACTION_PRESS: Final = "press"
+LUTRON_ACTION_RELEASE: Final = "release"
+
 # Button slots, in the order they appear on a Lutron Pico.
 SLOT_ON: Final = "on"
 SLOT_RAISE: Final = "raise"

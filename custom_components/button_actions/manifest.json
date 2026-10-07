@@ -1,14 +1,21 @@
 {
   "domain": "button_actions",
   "name": "Button Actions",
-  "after_dependencies": ["automation"],
-  "codeowners": ["@donavanbecker"],
+  "after_dependencies": [
+    "automation",
+    "lutron_caseta"
+  ],
+  "codeowners": [
+    "@donavanbecker"
+  ],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": [
+    "device_automation"
+  ],
   "documentation": "https://github.com/bisman-automations/ha-button-actions",
   "integration_type": "device",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/bisman-automations/ha-button-actions/issues",
   "requirements": [],
-  "version": "1.1.0"
+  "version": "1.2.0"
 }

@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.const import CONF_DEVICE_ID, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import (
     CALLBACK_TYPE,
     Context,
@@ -36,6 +36,7 @@ from .const import (
     CONF_REPEAT,
     CONF_REPEAT_MS,
     CONF_SLOT,
+    CONF_SOURCE,
     DEFAULT_DOUBLE_MS,
     DEFAULT_HOLD_MS,
     DEFAULT_PRESS_EVENT,
@@ -47,7 +48,12 @@ from .const import (
     GESTURE_LONG,
     GESTURE_LONG_RELEASE,
     GESTURES,
+    LUTRON_ACTION_PRESS,
+    LUTRON_ACTION_RELEASE,
+    LUTRON_BUTTON_EVENT,
     SLOTS,
+    SOURCE_EVENT_ENTITY,
+    SOURCE_LUTRON,
     SUBENTRY_BUTTON,
 )
 from .gesture import GestureDetector, GestureSettings
@@ -118,8 +124,11 @@ class ButtonActionsController:
         self.entry = entry
         self._press = entry.data.get(CONF_PRESS_EVENT, DEFAULT_PRESS_EVENT)
         self._release = entry.data.get(CONF_RELEASE_EVENT, DEFAULT_RELEASE_EVENT)
+        self.source = entry.data.get(CONF_SOURCE, SOURCE_EVENT_ENTITY)
+        self._device_id: str | None = entry.data.get(CONF_DEVICE_ID)
         self.buttons = buttons_from_entry(entry)
-        # entity_id -> (slot, detector)
+        # Event-entity remotes: entity_id -> (slot, detector)
+        # Lutron remotes: slot -> (slot, detector)
         self._detectors: dict[str, tuple[str, GestureDetector]] = {}
         # (slot, gesture) -> compiled script
         self._scripts: dict[tuple[str, str], Script] = {}
@@ -153,15 +162,28 @@ class ButtonActionsController:
                     await self._async_compile(button.slot, gesture, actions)
 
             settings = settings_for_button(self.entry.options, button)
-            for entity_id in button.entities:
-                self._detectors[entity_id] = (
+            keys = [button.slot] if self.source == SOURCE_LUTRON else button.entities
+            for key in keys:
+                self._detectors[key] = (
                     button.slot,
                     GestureDetector(
                         self._schedule, self._make_emitter(button.slot), settings
                     ),
                 )
 
-        if self._detectors:
+        if not self._detectors:
+            return
+        if self.source == SOURCE_LUTRON:
+            device_id = self._device_id
+
+            @callback
+            def _is_this_pico(data: Mapping[str, Any]) -> bool:
+                return data.get(CONF_DEVICE_ID) == device_id
+
+            self._unsub = self.hass.bus.async_listen(
+                LUTRON_BUTTON_EVENT, self._handle_lutron_event, _is_this_pico
+            )
+        else:
             self._unsub = async_track_state_change_event(
                 self.hass, list(self._detectors), self._handle_state_change
             )
@@ -246,6 +268,18 @@ class ButtonActionsController:
         if event_type == self._press:
             detector.press()
         elif event_type == self._release:
+            detector.release()
+
+    @callback
+    def _handle_lutron_event(self, event: Event) -> None:
+        """Core Lutron fires one event per press and per release."""
+        if (found := self._detectors.get(event.data.get("button_type"))) is None:
+            return
+        _slot, detector = found
+        action = event.data.get("action")
+        if action == LUTRON_ACTION_PRESS:
+            detector.press()
+        elif action == LUTRON_ACTION_RELEASE:
             detector.release()
 
     @callback
