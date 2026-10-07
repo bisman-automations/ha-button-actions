@@ -51,11 +51,31 @@ SLOT_ICONS: Final = {
     SLOT_BUTTON_4: "mdi:numeric-4-circle",
 }
 
+# Subentry titles. Stored with the subentry, so plain English.
+SLOT_TITLES: Final = {
+    SLOT_ON: "On button",
+    SLOT_RAISE: "Raise button",
+    SLOT_STOP: "Middle button",
+    SLOT_LOWER: "Lower button",
+    SLOT_OFF: "Off button",
+    SLOT_BUTTON_1: "Scene button 1",
+    SLOT_BUTTON_2: "Scene button 2",
+    SLOT_BUTTON_3: "Scene button 3",
+    SLOT_BUTTON_4: "Scene button 4",
+}
+
 # ---------------------------------------------------------------------------
-# Options
+# Button subentries (one per physical button)
 # ---------------------------------------------------------------------------
-CONF_ACTIONS: Final = "actions"
-CONF_REPEAT: Final = "repeat"  # list of slots whose long-press repeats while held
+SUBENTRY_BUTTON: Final = "button"
+CONF_SLOT: Final = "slot"
+CONF_ENTITIES: Final = "entities"
+CONF_ACTIONS: Final = "actions"  # {gesture: [action, ...]}
+CONF_REPEAT: Final = "repeat"  # bool: long-press repeats while held
+
+# ---------------------------------------------------------------------------
+# Remote-wide options
+# ---------------------------------------------------------------------------
 CONF_HOLD_MS: Final = "hold_ms"
 CONF_DOUBLE_MS: Final = "double_ms"
 CONF_REPEAT_MS: Final = "repeat_ms"

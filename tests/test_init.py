@@ -5,7 +5,9 @@ from __future__ import annotations
 import itertools
 from datetime import timedelta
 
+from homeassistant.config_entries import ConfigSubentryData
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -15,14 +17,16 @@ from pytest_homeassistant_custom_component.common import (
 
 from custom_components.button_actions.const import (
     CONF_ACTIONS,
-    CONF_BUTTONS,
     CONF_DOUBLE_MS,
+    CONF_ENTITIES,
     CONF_HOLD_MS,
     CONF_PRESS_EVENT,
     CONF_RELEASE_EVENT,
     CONF_REPEAT,
     CONF_REPEAT_MS,
+    CONF_SLOT,
     DOMAIN,
+    SUBENTRY_BUTTON,
 )
 
 ON = "event.kitchen_remote_on"
@@ -43,25 +47,36 @@ async def _advance(hass: HomeAssistant, seconds: float) -> None:
     await hass.async_block_till_done(wait_background_tasks=True)
 
 
+def _button(slot: str, entities: list[str], actions: dict, repeat: bool = False):
+    return ConfigSubentryData(
+        data={
+            CONF_SLOT: slot,
+            CONF_ENTITIES: entities,
+            CONF_ACTIONS: actions,
+            CONF_REPEAT: repeat,
+        },
+        subentry_type=SUBENTRY_BUTTON,
+        title=f"{slot} button",
+        unique_id=slot,
+    )
+
+
 async def _setup(hass: HomeAssistant, actions: dict, repeat: list[str] | None = None):
     for entity_id in (ON, RAISE):
         hass.states.async_set(entity_id, "unknown")
         _fire(hass, entity_id, "release")  # a prior, restored event
+    repeat = repeat or []
     entry = MockConfigEntry(
         domain=DOMAIN,
         title="Kitchen Remote",
-        data={
-            CONF_BUTTONS: {"on": [ON], "raise": [RAISE]},
-            CONF_PRESS_EVENT: "press",
-            CONF_RELEASE_EVENT: "release",
-        },
-        options={
-            CONF_HOLD_MS: 600,
-            CONF_DOUBLE_MS: 300,
-            CONF_REPEAT_MS: 200,
-            CONF_ACTIONS: actions,
-            CONF_REPEAT: repeat or [],
-        },
+        version=1,
+        minor_version=2,
+        data={CONF_PRESS_EVENT: "press", CONF_RELEASE_EVENT: "release"},
+        options={CONF_HOLD_MS: 600, CONF_DOUBLE_MS: 300, CONF_REPEAT_MS: 200},
+        subentries_data=[
+            _button("on", [ON], actions.get("on", {}), "on" in repeat),
+            _button("raise", [RAISE], actions.get("raise", {}), "raise" in repeat),
+        ],
     )
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -178,3 +193,72 @@ async def test_unload(hass: HomeAssistant) -> None:
     _fire(hass, RAISE, "release")
     await _advance(hass, 1)
     assert calls == []
+
+
+async def test_removing_button_removes_its_entity(hass: HomeAssistant) -> None:
+    calls = async_mock_service(hass, "light", "turn_on")
+    entry = await _setup(hass, {"raise": {"short_press": _light_on({})}})
+    assert hass.states.get("event.kitchen_remote_raise_up") is not None
+
+    raise_sub = next(s for s in entry.subentries.values() if s.unique_id == "raise")
+    hass.config_entries.async_remove_subentry(entry, raise_sub.subentry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    assert er.async_get(hass).async_get("event.kitchen_remote_raise_up") is None
+    _fire(hass, RAISE, "press")
+    _fire(hass, RAISE, "release")
+    await _advance(hass, 1)
+    assert calls == []
+
+
+async def test_migrate_from_1_0(hass: HomeAssistant) -> None:
+    """1.0.0 kept buttons in data and actions in options."""
+    calls = async_mock_service(hass, "light", "turn_on")
+    for entity_id in (ON, RAISE):
+        hass.states.async_set(entity_id, "unknown")
+        _fire(hass, entity_id, "release")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Kitchen Remote",
+        version=1,
+        minor_version=1,
+        data={
+            "buttons": {"on": [ON], "raise": [RAISE]},
+            CONF_PRESS_EVENT: "press",
+            CONF_RELEASE_EVENT: "release",
+        },
+        options={
+            CONF_HOLD_MS: 600,
+            CONF_DOUBLE_MS: 300,
+            CONF_REPEAT_MS: 200,
+            CONF_ACTIONS: {"raise": {"long_press": _light_on({"x": 1})}},
+            CONF_REPEAT: ["raise"],
+        },
+    )
+    entry.add_to_hass(hass)
+    # A gesture entity created by 1.0.0 keeps its entity ID.
+    er.async_get(hass).async_get_or_create(
+        "event",
+        DOMAIN,
+        f"{entry.entry_id}_raise",
+        config_entry=entry,
+        suggested_object_id="kitchen_remote_raise_up",
+    )
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    assert entry.minor_version == 2
+    assert "buttons" not in entry.data
+    assert set(entry.options) == {CONF_HOLD_MS, CONF_DOUBLE_MS, CONF_REPEAT_MS}
+    subs = {s.unique_id: s for s in entry.subentries.values()}
+    assert set(subs) == {"on", "raise"}
+    assert subs["raise"].title == "Raise button"
+    assert subs["raise"].data[CONF_REPEAT] is True
+    assert subs["raise"].data[CONF_ACTIONS] == {"long_press": _light_on({"x": 1})}
+    assert subs["on"].data[CONF_ACTIONS] == {}
+    assert hass.states.get("event.kitchen_remote_raise_up") is not None
+
+    # And it still works.
+    _fire(hass, RAISE, "press")
+    await _advance(hass, 0.65)
+    assert len(calls) == 1

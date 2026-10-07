@@ -29,7 +29,7 @@ Button Actions runs a small state machine per button inside Home Assistant, so e
 
 ## Requirements
 
-- Home Assistant 2025.2 or newer. The integration icon shows in the UI on 2026.3 and newer.
+- Home Assistant 2025.4 or newer. The integration icon shows in the UI on 2026.3 and newer.
 - Event entities that report a press and a release for each button. For Lutron Caséta, [lutron-caseta-events](https://github.com/jharris4/lutron-caseta-events) provides these.
 
 ## Installation
@@ -62,14 +62,24 @@ The press and release event types default to `press` and `release`, which is wha
 
 ## Configuring buttons
 
-Open the remote and choose **Configure**. The menu lists:
+Each remote lists its buttons right under it on the Button Actions integration page:
 
-| Menu item | What it does |
+```
+Living Room Remote                ⚙  ⋮
+  Living Room Remote  (device)       ⋮
+  On button                       ✎  ⋮
+  Raise button                    ✎  ⋮
+  Middle button                   ✎  ⋮
+  Lower button                    ✎  ⋮
+  Off button                      ✎  ⋮
+```
+
+| Control | What it does |
 | --- | --- |
-| Each button | Set its short press, double press, long press and release-after-long-press actions, and whether the long press repeats while held. |
-| Click timing | Double-press window, hold time, and repeat interval. |
-| Change button entities | Swap which event entities feed each button. |
-| Save | Store your changes. The remote reloads with the new config. |
+| ✎ next to a button | Set its short press, double press, long press and release-after-long-press actions, whether the long press repeats while held, and which event entities feed it. |
+| ⋮ next to a button | Delete that button. Its gesture entity is removed too. |
+| ⚙ on the remote | Click timing for the whole remote: double-press window, hold time and repeat interval. |
+| ⋮ on the remote → **Add button** | Add a button you skipped during setup. |
 
 Actions get these variables for templates: `remote` (the remote's name), `button` (`on`, `raise`, `stop`, `lower`, `off`, `button_1` … `button_4`) and `gesture`.
 
@@ -96,6 +106,10 @@ Turn on **Repeat long press while held**. Holding Raise now steps the lights up 
 | Repeat interval | 400 ms | 400 ms |
 
 Imported remotes keep the blueprint's timing so they feel the same as before. Lowering the hold time to around 600 ms makes long presses noticeably snappier.
+
+## Upgrading from 1.0.0
+
+Remotes set up with 1.0.0 convert automatically the first time Home Assistant starts with 1.1.0. Each button becomes its own entry under the remote with its actions intact, and entity IDs don't change.
 
 ## Notes
 

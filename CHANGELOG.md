@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-07
+
+### Changed
+
+- Each button is now listed under its remote on the integration page, with its own edit button for its actions and event entities. This replaces the old Configure menu.
+- The gear on a remote now opens just the click timing settings.
+- Button Actions is now a device integration instead of a helper. Remotes appear as regular integration entries and are added from **Add integration**.
+- Requires Home Assistant 2025.4 or newer.
+
+### Added
+
+- **Add button** on a remote, for buttons skipped during setup.
+- Deleting a button also removes its gesture event entity.
+
+### Migration
+
+- Remotes set up with 1.0.0 convert automatically on startup. Actions, repeat settings and entity IDs are kept.
+
 ## [1.0.0] - 2026-10-06
 
 First release.
@@ -24,5 +42,6 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/bisman-automations/ha-button-actions/releases/tag/v1.0.0

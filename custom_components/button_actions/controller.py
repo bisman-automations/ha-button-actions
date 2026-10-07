@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import homeassistant.helpers.config_validation as cv
@@ -27,13 +28,14 @@ from homeassistant.helpers.script import (
 
 from .const import (
     CONF_ACTIONS,
-    CONF_BUTTONS,
     CONF_DOUBLE_MS,
+    CONF_ENTITIES,
     CONF_HOLD_MS,
     CONF_PRESS_EVENT,
     CONF_RELEASE_EVENT,
     CONF_REPEAT,
     CONF_REPEAT_MS,
+    CONF_SLOT,
     DEFAULT_DOUBLE_MS,
     DEFAULT_HOLD_MS,
     DEFAULT_PRESS_EVENT,
@@ -45,6 +47,8 @@ from .const import (
     GESTURE_LONG,
     GESTURE_LONG_RELEASE,
     GESTURES,
+    SLOTS,
+    SUBENTRY_BUTTON,
 )
 from .gesture import GestureDetector, GestureSettings
 
@@ -56,18 +60,43 @@ _LOGGER = logging.getLogger(__name__)
 _IGNORED_STATES = (STATE_UNAVAILABLE, STATE_UNKNOWN)
 
 
-def settings_for_slot(
-    options: dict[str, Any], slot_actions: dict[str, list[Any]], repeat: bool
+@dataclass(frozen=True, slots=True)
+class ButtonConfig:
+    """One physical button, read from a button subentry."""
+
+    slot: str
+    entities: list[str]
+    actions: dict[str, list[dict[str, Any]]]
+    repeat: bool
+
+
+def buttons_from_entry(entry: ConfigEntry) -> list[ButtonConfig]:
+    """Return the entry's buttons in Pico order."""
+    buttons = [
+        ButtonConfig(
+            slot=sub.data[CONF_SLOT],
+            entities=list(sub.data.get(CONF_ENTITIES, [])),
+            actions=dict(sub.data.get(CONF_ACTIONS, {})),
+            repeat=bool(sub.data.get(CONF_REPEAT, False)),
+        )
+        for sub in entry.subentries.values()
+        if sub.subentry_type == SUBENTRY_BUTTON and sub.data.get(CONF_SLOT) in SLOTS
+    ]
+    return sorted(buttons, key=lambda b: SLOTS.index(b.slot))
+
+
+def settings_for_button(
+    options: dict[str, Any], button: ButtonConfig
 ) -> GestureSettings:
     """Build detector settings from what the user configured for a button."""
-    has_long = bool(slot_actions.get(GESTURE_LONG))
+    has_long = bool(button.actions.get(GESTURE_LONG))
     return GestureSettings(
         hold_ms=int(options.get(CONF_HOLD_MS, DEFAULT_HOLD_MS)),
         double_ms=int(options.get(CONF_DOUBLE_MS, DEFAULT_DOUBLE_MS)),
         repeat_ms=int(options.get(CONF_REPEAT_MS, DEFAULT_REPEAT_MS)),
-        detect_double=bool(slot_actions.get(GESTURE_DOUBLE)),
-        detect_hold=has_long or bool(slot_actions.get(GESTURE_LONG_RELEASE)),
-        repeat=repeat and has_long,
+        detect_double=bool(button.actions.get(GESTURE_DOUBLE)),
+        detect_hold=has_long or bool(button.actions.get(GESTURE_LONG_RELEASE)),
+        repeat=button.repeat and has_long,
     )
 
 
@@ -89,11 +118,7 @@ class ButtonActionsController:
         self.entry = entry
         self._press = entry.data.get(CONF_PRESS_EVENT, DEFAULT_PRESS_EVENT)
         self._release = entry.data.get(CONF_RELEASE_EVENT, DEFAULT_RELEASE_EVENT)
-        self._buttons: dict[str, list[str]] = entry.data.get(CONF_BUTTONS, {})
-        self._actions: dict[str, dict[str, list[Any]]] = entry.options.get(
-            CONF_ACTIONS, {}
-        )
-        self._repeat_slots: set[str] = set(entry.options.get(CONF_REPEAT, []))
+        self.buttons = buttons_from_entry(entry)
         # entity_id -> (slot, detector)
         self._detectors: dict[str, tuple[str, GestureDetector]] = {}
         # (slot, gesture) -> compiled script
@@ -104,8 +129,8 @@ class ButtonActionsController:
 
     @property
     def slots(self) -> list[str]:
-        """Button slots that have at least one source entity."""
-        return [slot for slot, entities in self._buttons.items() if entities]
+        """Configured button slots, in Pico order."""
+        return [button.slot for button in self.buttons]
 
     @callback
     def register_gesture_listener(
@@ -122,19 +147,18 @@ class ButtonActionsController:
 
     async def async_start(self) -> None:
         """Compile actions, create detectors and start listening."""
-        for slot in self.slots:
-            slot_actions = self._actions.get(slot, {})
+        for button in self.buttons:
             for gesture in GESTURES:
-                if actions := slot_actions.get(gesture):
-                    await self._async_compile(slot, gesture, actions)
+                if actions := button.actions.get(gesture):
+                    await self._async_compile(button.slot, gesture, actions)
 
-            settings = settings_for_slot(
-                self.entry.options, slot_actions, slot in self._repeat_slots
-            )
-            for entity_id in self._buttons[slot]:
+            settings = settings_for_button(self.entry.options, button)
+            for entity_id in button.entities:
                 self._detectors[entity_id] = (
-                    slot,
-                    GestureDetector(self._schedule, self._make_emitter(slot), settings),
+                    button.slot,
+                    GestureDetector(
+                        self._schedule, self._make_emitter(button.slot), settings
+                    ),
                 )
 
         if self._detectors:
