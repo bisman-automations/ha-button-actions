@@ -1,0 +1,408 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a button remote",
+        "menu_options": {
+          "import_blueprint": "Import from a Pico blueprint automation",
+          "manual": "Set up a new remote"
+        }
+      },
+      "import_blueprint": {
+        "title": "Import from a blueprint automation",
+        "description": "Pick an automation made with the Lutron Pico Universal Actions blueprint. Its buttons, actions and timing are copied over.",
+        "data": {
+          "automation": "Automation",
+          "disable_source": "Turn off the original automation"
+        },
+        "data_description": {
+          "disable_source": "Recommended, so each press doesn't run twice. Nothing is deleted; you can turn it back on anytime."
+        }
+      },
+      "manual": {
+        "title": "Set up a new remote",
+        "description": "Pick the event entities for each button. You'll choose what each button does from the integration's Configure menu afterwards.",
+        "data": {
+          "name": "Name",
+          "on": "On / top button",
+          "raise": "Raise / up button",
+          "stop": "Middle / favorite button",
+          "lower": "Lower / down button",
+          "off": "Off / bottom button",
+          "button_1": "Scene button 1 button",
+          "button_2": "Scene button 2 button",
+          "button_3": "Scene button 3 button",
+          "button_4": "Scene button 4 button",
+          "press_event_type": "Press event type",
+          "release_event_type": "Release event type"
+        },
+        "data_description": {
+          "on": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "raise": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "stop": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "lower": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "off": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "button_1": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "button_2": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "button_3": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "button_4": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "press_event_type": "The event_type the source entity reports when a button goes down. Lutron uses press.",
+          "release_event_type": "The event_type the source entity reports when a button comes up. Lutron uses release."
+        }
+      }
+    },
+    "error": {
+      "no_buttons": "Select at least one button.",
+      "already_configured": "One of these event entities is already used by another remote.",
+      "not_blueprint": "This automation doesn't use the Lutron Pico Universal Actions blueprint.",
+      "invalid_action": "One of the actions is invalid. Check the logs for details."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure remote",
+        "menu_options": {
+          "on": "On / top button",
+          "raise": "Raise / up button",
+          "stop": "Middle / favorite button",
+          "lower": "Lower / down button",
+          "off": "Off / bottom button",
+          "button_1": "Scene button 1 button",
+          "button_2": "Scene button 2 button",
+          "button_3": "Scene button 3 button",
+          "button_4": "Scene button 4 button",
+          "timing": "Click timing",
+          "sources": "Change button entities",
+          "save": "Save"
+        }
+      },
+      "on": {
+        "title": "On / top button",
+        "description": "Choose what each gesture on this button does. Actions use the same editor as scripts and automations, so any action, target and data works.",
+        "data": {
+          "short_press": "Short press",
+          "double_press": "Double press",
+          "long_press": "Long press",
+          "long_release": "Release after long press",
+          "repeat": "Repeat long press while held"
+        },
+        "data_description": {
+          "short_press": "Runs on release. Fires instantly unless a double-press action is set, in which case it waits briefly for a second press.",
+          "double_press": "Runs on the second press. Leave empty to keep short presses instant.",
+          "long_press": "Runs once the button has been held for the hold time.",
+          "long_release": "Runs when a held button is let go, for example to stop a cover.",
+          "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume."
+        }
+      },
+      "raise": {
+        "title": "Raise / up button",
+        "description": "Choose what each gesture on this button does. Actions use the same editor as scripts and automations, so any action, target and data works.",
+        "data": {
+          "short_press": "Short press",
+          "double_press": "Double press",
+          "long_press": "Long press",
+          "long_release": "Release after long press",
+          "repeat": "Repeat long press while held"
+        },
+        "data_description": {
+          "short_press": "Runs on release. Fires instantly unless a double-press action is set, in which case it waits briefly for a second press.",
+          "double_press": "Runs on the second press. Leave empty to keep short presses instant.",
+          "long_press": "Runs once the button has been held for the hold time.",
+          "long_release": "Runs when a held button is let go, for example to stop a cover.",
+          "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume."
+        }
+      },
+      "stop": {
+        "title": "Middle / favorite button",
+        "description": "Choose what each gesture on this button does. Actions use the same editor as scripts and automations, so any action, target and data works.",
+        "data": {
+          "short_press": "Short press",
+          "double_press": "Double press",
+          "long_press": "Long press",
+          "long_release": "Release after long press",
+          "repeat": "Repeat long press while held"
+        },
+        "data_description": {
+          "short_press": "Runs on release. Fires instantly unless a double-press action is set, in which case it waits briefly for a second press.",
+          "double_press": "Runs on the second press. Leave empty to keep short presses instant.",
+          "long_press": "Runs once the button has been held for the hold time.",
+          "long_release": "Runs when a held button is let go, for example to stop a cover.",
+          "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume."
+        }
+      },
+      "lower": {
+        "title": "Lower / down button",
+        "description": "Choose what each gesture on this button does. Actions use the same editor as scripts and automations, so any action, target and data works.",
+        "data": {
+          "short_press": "Short press",
+          "double_press": "Double press",
+          "long_press": "Long press",
+          "long_release": "Release after long press",
+          "repeat": "Repeat long press while held"
+        },
+        "data_description": {
+          "short_press": "Runs on release. Fires instantly unless a double-press action is set, in which case it waits briefly for a second press.",
+          "double_press": "Runs on the second press. Leave empty to keep short presses instant.",
+          "long_press": "Runs once the button has been held for the hold time.",
+          "long_release": "Runs when a held button is let go, for example to stop a cover.",
+          "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume."
+        }
+      },
+      "off": {
+        "title": "Off / bottom button",
+        "description": "Choose what each gesture on this button does. Actions use the same editor as scripts and automations, so any action, target and data works.",
+        "data": {
+          "short_press": "Short press",
+          "double_press": "Double press",
+          "long_press": "Long press",
+          "long_release": "Release after long press",
+          "repeat": "Repeat long press while held"
+        },
+        "data_description": {
+          "short_press": "Runs on release. Fires instantly unless a double-press action is set, in which case it waits briefly for a second press.",
+          "double_press": "Runs on the second press. Leave empty to keep short presses instant.",
+          "long_press": "Runs once the button has been held for the hold time.",
+          "long_release": "Runs when a held button is let go, for example to stop a cover.",
+          "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume."
+        }
+      },
+      "button_1": {
+        "title": "Scene button 1 button",
+        "description": "Choose what each gesture on this button does. Actions use the same editor as scripts and automations, so any action, target and data works.",
+        "data": {
+          "short_press": "Short press",
+          "double_press": "Double press",
+          "long_press": "Long press",
+          "long_release": "Release after long press",
+          "repeat": "Repeat long press while held"
+        },
+        "data_description": {
+          "short_press": "Runs on release. Fires instantly unless a double-press action is set, in which case it waits briefly for a second press.",
+          "double_press": "Runs on the second press. Leave empty to keep short presses instant.",
+          "long_press": "Runs once the button has been held for the hold time.",
+          "long_release": "Runs when a held button is let go, for example to stop a cover.",
+          "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume."
+        }
+      },
+      "button_2": {
+        "title": "Scene button 2 button",
+        "description": "Choose what each gesture on this button does. Actions use the same editor as scripts and automations, so any action, target and data works.",
+        "data": {
+          "short_press": "Short press",
+          "double_press": "Double press",
+          "long_press": "Long press",
+          "long_release": "Release after long press",
+          "repeat": "Repeat long press while held"
+        },
+        "data_description": {
+          "short_press": "Runs on release. Fires instantly unless a double-press action is set, in which case it waits briefly for a second press.",
+          "double_press": "Runs on the second press. Leave empty to keep short presses instant.",
+          "long_press": "Runs once the button has been held for the hold time.",
+          "long_release": "Runs when a held button is let go, for example to stop a cover.",
+          "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume."
+        }
+      },
+      "button_3": {
+        "title": "Scene button 3 button",
+        "description": "Choose what each gesture on this button does. Actions use the same editor as scripts and automations, so any action, target and data works.",
+        "data": {
+          "short_press": "Short press",
+          "double_press": "Double press",
+          "long_press": "Long press",
+          "long_release": "Release after long press",
+          "repeat": "Repeat long press while held"
+        },
+        "data_description": {
+          "short_press": "Runs on release. Fires instantly unless a double-press action is set, in which case it waits briefly for a second press.",
+          "double_press": "Runs on the second press. Leave empty to keep short presses instant.",
+          "long_press": "Runs once the button has been held for the hold time.",
+          "long_release": "Runs when a held button is let go, for example to stop a cover.",
+          "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume."
+        }
+      },
+      "button_4": {
+        "title": "Scene button 4 button",
+        "description": "Choose what each gesture on this button does. Actions use the same editor as scripts and automations, so any action, target and data works.",
+        "data": {
+          "short_press": "Short press",
+          "double_press": "Double press",
+          "long_press": "Long press",
+          "long_release": "Release after long press",
+          "repeat": "Repeat long press while held"
+        },
+        "data_description": {
+          "short_press": "Runs on release. Fires instantly unless a double-press action is set, in which case it waits briefly for a second press.",
+          "double_press": "Runs on the second press. Leave empty to keep short presses instant.",
+          "long_press": "Runs once the button has been held for the hold time.",
+          "long_release": "Runs when a held button is let go, for example to stop a cover.",
+          "repeat": "Keep re-running the long-press action while the button is held, for hold-to-dim or hold-to-raise volume."
+        }
+      },
+      "timing": {
+        "title": "Click timing",
+        "data": {
+          "double_ms": "Double-press window",
+          "hold_ms": "Hold time",
+          "repeat_ms": "Repeat interval"
+        },
+        "data_description": {
+          "double_ms": "How long to wait for a second press. Only applies to buttons with a double-press action.",
+          "hold_ms": "How long a button must be held to count as a long press.",
+          "repeat_ms": "How often the long-press action repeats while held, for buttons with repeat turned on."
+        }
+      },
+      "sources": {
+        "title": "Change button entities",
+        "data": {
+          "on": "On / top button",
+          "raise": "Raise / up button",
+          "stop": "Middle / favorite button",
+          "lower": "Lower / down button",
+          "off": "Off / bottom button",
+          "button_1": "Scene button 1 button",
+          "button_2": "Scene button 2 button",
+          "button_3": "Scene button 3 button",
+          "button_4": "Scene button 4 button"
+        },
+        "data_description": {
+          "on": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "raise": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "stop": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "lower": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "off": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "button_1": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "button_2": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "button_3": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions.",
+          "button_4": "Event entities for this button. Leave empty if the remote doesn't have it. Pick several to have multiple remotes share one set of actions."
+        }
+      }
+    },
+    "error": {
+      "no_buttons": "Select at least one button.",
+      "already_configured": "One of these event entities is already used by another remote.",
+      "invalid_action": "This action is invalid. Check the logs for details."
+    }
+  },
+  "entity": {
+    "event": {
+      "on": {
+        "name": "On / top",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "short_press": "Short press",
+              "double_press": "Double press",
+              "long_press": "Long press",
+              "long_release": "Release after long press"
+            }
+          }
+        }
+      },
+      "raise": {
+        "name": "Raise / up",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "short_press": "Short press",
+              "double_press": "Double press",
+              "long_press": "Long press",
+              "long_release": "Release after long press"
+            }
+          }
+        }
+      },
+      "stop": {
+        "name": "Middle / favorite",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "short_press": "Short press",
+              "double_press": "Double press",
+              "long_press": "Long press",
+              "long_release": "Release after long press"
+            }
+          }
+        }
+      },
+      "lower": {
+        "name": "Lower / down",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "short_press": "Short press",
+              "double_press": "Double press",
+              "long_press": "Long press",
+              "long_release": "Release after long press"
+            }
+          }
+        }
+      },
+      "off": {
+        "name": "Off / bottom",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "short_press": "Short press",
+              "double_press": "Double press",
+              "long_press": "Long press",
+              "long_release": "Release after long press"
+            }
+          }
+        }
+      },
+      "button_1": {
+        "name": "Scene button 1",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "short_press": "Short press",
+              "double_press": "Double press",
+              "long_press": "Long press",
+              "long_release": "Release after long press"
+            }
+          }
+        }
+      },
+      "button_2": {
+        "name": "Scene button 2",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "short_press": "Short press",
+              "double_press": "Double press",
+              "long_press": "Long press",
+              "long_release": "Release after long press"
+            }
+          }
+        }
+      },
+      "button_3": {
+        "name": "Scene button 3",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "short_press": "Short press",
+              "double_press": "Double press",
+              "long_press": "Long press",
+              "long_release": "Release after long press"
+            }
+          }
+        }
+      },
+      "button_4": {
+        "name": "Scene button 4",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "short_press": "Short press",
+              "double_press": "Double press",
+              "long_press": "Long press",
+              "long_release": "Release after long press"
+            }
+          }
+        }
+      }
+    }
+  }
+}
