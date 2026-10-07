@@ -16,9 +16,10 @@ from homeassistant.config_entries import (
     OptionsFlow,
     SubentryFlowResult,
 )
-from homeassistant.const import CONF_NAME
+from homeassistant.const import CONF_DEVICE_ID, CONF_NAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 from homeassistant.util.yaml import load_yaml
@@ -32,11 +33,13 @@ from .const import (
     CONF_DOUBLE_MS,
     CONF_ENTITIES,
     CONF_HOLD_MS,
+    CONF_PICO_BUTTONS,
     CONF_PRESS_EVENT,
     CONF_RELEASE_EVENT,
     CONF_REPEAT,
     CONF_REPEAT_MS,
     CONF_SLOT,
+    CONF_SOURCE,
     DEFAULT_DOUBLE_MS,
     DEFAULT_HOLD_MS,
     DEFAULT_PRESS_EVENT,
@@ -44,11 +47,15 @@ from .const import (
     DEFAULT_REPEAT_MS,
     DOMAIN,
     GESTURES,
+    LUTRON_DOMAIN,
     SLOT_TITLES,
     SLOTS,
+    SOURCE_EVENT_ENTITY,
+    SOURCE_LUTRON,
     SUBENTRY_BUTTON,
 )
 from .controller import async_validate_sequence
+from .lutron import async_pico_buttons, lutron_device_for_entities
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,6 +65,46 @@ CONF_DISABLE_SOURCE = "disable_source"
 _EVENT_ENTITIES = selector.EntitySelector(
     selector.EntitySelectorConfig(domain="event", multiple=True)
 )
+_PICO_DEVICE = selector.DeviceSelector(
+    selector.DeviceSelectorConfig(integration=LUTRON_DOMAIN)
+)
+
+
+def _is_lutron(entry: ConfigEntry) -> bool:
+    return entry.data.get(CONF_SOURCE, SOURCE_EVENT_ENTITY) == SOURCE_LUTRON
+
+
+def _pico_conflict(
+    hass: HomeAssistant,
+    device_id: str | None,
+    exclude_entry_id: str | None = None,
+) -> str | None:
+    """Return an error key if a Pico already drives another remote.
+
+    Catches both another core-Lutron remote on the same Pico, and an
+    event-entity remote whose entities belong to that Pico; either way
+    every press would run twice.
+    """
+    if device_id is None:
+        return None
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if entry.entry_id == exclude_entry_id:
+            continue
+        if _is_lutron(entry):
+            if entry.data.get(CONF_DEVICE_ID) == device_id:
+                return "pico_in_use"
+            continue
+        for sub in entry.subentries.values():
+            entities = sub.data.get(CONF_ENTITIES, [])
+            if lutron_device_for_entities(hass, entities) == device_id:
+                return "pico_in_use"
+    return None
+
+
+def _device_name(hass: HomeAssistant, device_id: str) -> str | None:
+    if (device := dr.async_get(hass).async_get(device_id)) is None:
+        return None
+    return device.name_by_user or device.name
 
 
 def _ms_selector(minimum: int, maximum: int) -> selector.NumberSelector:
@@ -269,8 +316,159 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Choose between importing an automation or starting fresh."""
         return self.async_show_menu(
-            step_id="user", menu_options=["import_blueprint", "manual"]
+            step_id="user", menu_options=["lutron", "import_blueprint", "manual"]
         )
+
+    async def async_step_lutron(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Use a Pico from the core Lutron Caséta integration directly."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            device_id = user_input[CONF_DEVICE_ID]
+            if error := _pico_conflict(self.hass, device_id):
+                errors[CONF_DEVICE_ID] = error
+            elif not (buttons := await async_pico_buttons(self.hass, device_id)):
+                errors[CONF_DEVICE_ID] = "not_a_pico"
+            else:
+                title = (
+                    user_input.get(CONF_NAME)
+                    or _device_name(self.hass, device_id)
+                    or "Pico remote"
+                )
+                return self.async_create_entry(
+                    title=title,
+                    data={
+                        CONF_SOURCE: SOURCE_LUTRON,
+                        CONF_DEVICE_ID: device_id,
+                        CONF_PICO_BUTTONS: buttons,
+                    },
+                    options={
+                        CONF_HOLD_MS: DEFAULT_HOLD_MS,
+                        CONF_DOUBLE_MS: DEFAULT_DOUBLE_MS,
+                        CONF_REPEAT_MS: DEFAULT_REPEAT_MS,
+                    },
+                    subentries=[
+                        _button_subentry(slot, [], {}, False) for slot in buttons
+                    ],
+                )
+
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_DEVICE_ID): _PICO_DEVICE,
+                vol.Optional(CONF_NAME): selector.TextSelector(),
+            }
+        )
+        return self.async_show_form(
+            step_id="lutron",
+            data_schema=self.add_suggested_values_to_schema(schema, user_input),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Rename a remote, change its event types, or move it to a Pico."""
+        entry = self._get_reconfigure_entry()
+        lutron = _is_lutron(entry)
+        errors: dict[str, str] = {}
+        placeholders: dict[str, str] = {"missing": ""}
+
+        if user_input is not None:
+            title = user_input[CONF_NAME]
+            device_id = user_input.get(CONF_DEVICE_ID)
+            if device_id and (
+                not lutron or device_id != entry.data.get(CONF_DEVICE_ID)
+            ):
+                # Moving to core Lutron, or swapping in a replacement Pico.
+                buttons = await async_pico_buttons(self.hass, device_id)
+                used = [
+                    sub.data[CONF_SLOT]
+                    for sub in entry.subentries.values()
+                    if sub.subentry_type == SUBENTRY_BUTTON
+                ]
+                missing = [slot for slot in used if slot not in buttons]
+                if error := _pico_conflict(self.hass, device_id, entry.entry_id):
+                    errors[CONF_DEVICE_ID] = error
+                elif not buttons:
+                    errors[CONF_DEVICE_ID] = "not_a_pico"
+                elif missing:
+                    errors[CONF_DEVICE_ID] = "buttons_missing"
+                    placeholders["missing"] = ", ".join(
+                        SLOT_TITLES[slot] for slot in missing
+                    )
+                else:
+                    for sub in list(entry.subentries.values()):
+                        if sub.subentry_type == SUBENTRY_BUTTON and sub.data.get(
+                            CONF_ENTITIES
+                        ):
+                            self.hass.config_entries.async_update_subentry(
+                                entry, sub, data={**sub.data, CONF_ENTITIES: []}
+                            )
+                    return self.async_update_reload_and_abort(
+                        entry,
+                        title=title,
+                        data={
+                            CONF_SOURCE: SOURCE_LUTRON,
+                            CONF_DEVICE_ID: device_id,
+                            CONF_PICO_BUTTONS: buttons,
+                        },
+                    )
+            elif lutron:
+                return self.async_update_reload_and_abort(entry, title=title)
+            else:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    title=title,
+                    data_updates={
+                        CONF_SOURCE: SOURCE_EVENT_ENTITY,
+                        CONF_PRESS_EVENT: user_input[CONF_PRESS_EVENT],
+                        CONF_RELEASE_EVENT: user_input[CONF_RELEASE_EVENT],
+                    },
+                )
+
+        fields: dict[vol.Marker, Any] = {
+            vol.Required(CONF_NAME): selector.TextSelector()
+        }
+        if lutron:
+            fields[vol.Required(CONF_DEVICE_ID)] = _PICO_DEVICE
+            suggested: dict[str, Any] = {
+                CONF_NAME: entry.title,
+                CONF_DEVICE_ID: entry.data.get(CONF_DEVICE_ID),
+            }
+        else:
+            fields[vol.Required(CONF_PRESS_EVENT)] = selector.TextSelector()
+            fields[vol.Required(CONF_RELEASE_EVENT)] = selector.TextSelector()
+            fields[vol.Optional(CONF_DEVICE_ID)] = _PICO_DEVICE
+            all_entities = [
+                entity
+                for sub in entry.subentries.values()
+                for entity in sub.data.get(CONF_ENTITIES, [])
+            ]
+            suggested = {
+                CONF_NAME: entry.title,
+                CONF_PRESS_EVENT: entry.data.get(CONF_PRESS_EVENT, DEFAULT_PRESS_EVENT),
+                CONF_RELEASE_EVENT: entry.data.get(
+                    CONF_RELEASE_EVENT, DEFAULT_RELEASE_EVENT
+                ),
+            }
+            if pico := lutron_device_for_entities(self.hass, all_entities):
+                suggested[CONF_DEVICE_ID] = pico
+
+        return self.async_show_form(
+            step_id="reconfigure_lutron" if lutron else "reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(fields), user_input or suggested
+            ),
+            errors=errors,
+            description_placeholders=placeholders,
+        )
+
+    async def async_step_reconfigure_lutron(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Submit target for the Pico-remote version of the reconfigure form."""
+        return await self.async_step_reconfigure(user_input)
 
     async def async_step_import_blueprint(
         self, user_input: dict[str, Any] | None = None
@@ -298,6 +496,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                     return self.async_create_entry(
                         title=state.name if state else automation,
                         data={
+                            CONF_SOURCE: SOURCE_EVENT_ENTITY,
                             CONF_PRESS_EVENT: DEFAULT_PRESS_EVENT,
                             CONF_RELEASE_EVENT: DEFAULT_RELEASE_EVENT,
                         },
@@ -336,6 +535,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(
                     title=user_input[CONF_NAME],
                     data={
+                        CONF_SOURCE: SOURCE_EVENT_ENTITY,
                         CONF_PRESS_EVENT: user_input[CONF_PRESS_EVENT],
                         CONF_RELEASE_EVENT: user_input[CONF_RELEASE_EVENT],
                     },
@@ -373,6 +573,10 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         all_entities = {e for sub in subentries for e in sub["data"][CONF_ENTITIES]}
         if all_entities & _entities_in_use(self.hass):
             return {"base": "already_configured"}
+        if _pico_conflict(
+            self.hass, lutron_device_for_entities(self.hass, sorted(all_entities))
+        ):
+            return {"base": "pico_in_use"}
         for sub in subentries:
             for sequence in sub["data"][CONF_ACTIONS].values():
                 try:
@@ -423,12 +627,17 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
     ) -> SubentryFlowResult:
         """Pick which button to add and its event entities."""
         entry = self._get_entry()
+        lutron = _is_lutron(entry)
         used = {sub.unique_id for sub in entry.subentries.values()}
-        free = [slot for slot in SLOTS if slot not in used]
+        available = entry.data.get(CONF_PICO_BUTTONS, []) if lutron else SLOTS
+        free = [slot for slot in available if slot not in used]
         if not free:
             return self.async_abort(reason="all_buttons_added")
 
         errors: dict[str, str] = {}
+        if user_input is not None and lutron:
+            self._slot = user_input[CONF_SLOT]
+            return await self.async_step_actions()
         if user_input is not None:
             entities = _as_list(user_input.get(CONF_ENTITIES))
             if not entities:
@@ -449,7 +658,7 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
-                vol.Required(CONF_ENTITIES): _EVENT_ENTITIES,
+                **({} if lutron else {vol.Required(CONF_ENTITIES): _EVENT_ENTITIES}),
             }
         )
         return self.async_show_form(
@@ -495,11 +704,14 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
         subentry = self._get_reconfigure_subentry()
         slot = subentry.data[CONF_SLOT]
 
+        lutron = _is_lutron(entry)
         errors: dict[str, str] = {}
         if user_input is not None:
             entities = _as_list(user_input.get(CONF_ENTITIES))
             actions, errors = await _async_actions_from_input(self.hass, user_input)
-            if not entities:
+            if lutron:
+                entities = []
+            elif not entities:
                 errors[CONF_ENTITIES] = "no_entities"
             elif set(entities) & _entities_in_use(self.hass, subentry.subentry_id):
                 errors[CONF_ENTITIES] = "already_configured"
@@ -518,7 +730,9 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
             CONF_REPEAT: subentry.data.get(CONF_REPEAT, False),
         }
         schema = vol.Schema(
-            {vol.Required(CONF_ENTITIES): _EVENT_ENTITIES, **_actions_schema()}
+            _actions_schema()
+            if lutron
+            else {vol.Required(CONF_ENTITIES): _EVENT_ENTITIES, **_actions_schema()}
         )
         return self.async_show_form(
             step_id="reconfigure",

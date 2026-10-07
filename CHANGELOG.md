@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-07
+
+### Added
+
+- Set up a remote straight from a Pico in the core Lutron Caséta integration. Its buttons are added automatically and presses are read from Lutron's own button events, so lutron-caseta-events is no longer needed.
+- **Reconfigure** on a remote to rename it, change its press and release event types, or switch an event-entity remote to a Lutron Caséta Pico while keeping every button's actions. Pico remotes can also be pointed at a replacement Pico.
+- Setup and Reconfigure refuse a Pico that already drives another remote, so presses can't run twice.
+
+### Changed
+
+- **Add button** on a Pico remote only offers buttons that Pico has, and button edit forms on Pico remotes no longer ask for event entities.
+
 ## [1.1.0] - 2026-10-07
 
 ### Changed
@@ -42,6 +54,7 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/bisman-automations/ha-button-actions/releases/tag/v1.0.0
