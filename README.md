@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/bisman-automations/ha-button-actions/main/custom_components/button_actions/brand/icon@2x.png" alt="Button Actions icon" width="128">
+</p>
+
 # Button Actions
 
 Map short, double and long presses on Lutron Pico and other button remotes to any Home Assistant action, configured entirely in the UI. No automations needed.
@@ -25,7 +29,7 @@ Button Actions runs a small state machine per button inside Home Assistant, so e
 
 ## Requirements
 
-- Home Assistant 2025.2 or newer.
+- Home Assistant 2025.2 or newer. The integration icon shows in the UI on 2026.3 and newer.
 - Event entities that report a press and a release for each button. For Lutron Caséta, [lutron-caseta-events](https://github.com/jharris4/lutron-caseta-events) provides these.
 
 ## Installation

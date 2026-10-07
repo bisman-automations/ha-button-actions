@@ -130,9 +130,7 @@ async def _async_blueprint_inputs(
 
     if config is None:
         # Fall back to the loaded automation entity (covers YAML packages).
-        from homeassistant.components.automation import (  # noqa: PLC0415
-            DATA_COMPONENT,
-        )
+        from homeassistant.components.automation import DATA_COMPONENT
 
         if (component := hass.data.get(DATA_COMPONENT)) is not None and (
             entity := component.get_entity(automation_entity_id)
