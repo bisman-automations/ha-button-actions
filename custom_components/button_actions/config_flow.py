@@ -1,10 +1,9 @@
-"""Config and options flows for Button Actions."""
+"""Config, options and button subentry flows for Button Actions."""
 
 from __future__ import annotations
 
 import copy
 import logging
-from collections.abc import Callable, Coroutine
 from typing import Any
 
 import voluptuous as vol
@@ -12,7 +11,10 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
+    ConfigSubentryData,
+    ConfigSubentryFlow,
     OptionsFlow,
+    SubentryFlowResult,
 )
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant, callback
@@ -27,13 +29,14 @@ from .const import (
     BLUEPRINT_ENTITY_INPUTS,
     BLUEPRINT_GESTURE_PREFIXES,
     CONF_ACTIONS,
-    CONF_BUTTONS,
     CONF_DOUBLE_MS,
+    CONF_ENTITIES,
     CONF_HOLD_MS,
     CONF_PRESS_EVENT,
     CONF_RELEASE_EVENT,
     CONF_REPEAT,
     CONF_REPEAT_MS,
+    CONF_SLOT,
     DEFAULT_DOUBLE_MS,
     DEFAULT_HOLD_MS,
     DEFAULT_PRESS_EVENT,
@@ -41,7 +44,9 @@ from .const import (
     DEFAULT_REPEAT_MS,
     DOMAIN,
     GESTURES,
+    SLOT_TITLES,
     SLOTS,
+    SUBENTRY_BUTTON,
 )
 from .controller import async_validate_sequence
 
@@ -75,23 +80,83 @@ def _as_list(value: Any) -> list[Any]:
     return [value]
 
 
-def _buttons_schema() -> dict[vol.Marker, Any]:
-    return {vol.Optional(slot): _EVENT_ENTITIES for slot in SLOTS}
+def _timing_schema(options: dict[str, Any]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_DOUBLE_MS,
+                default=options.get(CONF_DOUBLE_MS, DEFAULT_DOUBLE_MS),
+            ): _ms_selector(100, 1000),
+            vol.Required(
+                CONF_HOLD_MS,
+                default=options.get(CONF_HOLD_MS, DEFAULT_HOLD_MS),
+            ): _ms_selector(300, 4000),
+            vol.Required(
+                CONF_REPEAT_MS,
+                default=options.get(CONF_REPEAT_MS, DEFAULT_REPEAT_MS),
+            ): _ms_selector(100, 2000),
+        }
+    )
 
 
-def _buttons_from_input(user_input: dict[str, Any]) -> dict[str, list[str]]:
-    return {slot: ents for slot in SLOTS if (ents := _as_list(user_input.get(slot)))}
+def _actions_schema() -> dict[vol.Marker, Any]:
+    return {
+        **{vol.Optional(gesture): selector.ActionSelector() for gesture in GESTURES},
+        vol.Optional(CONF_REPEAT): selector.BooleanSelector(),
+    }
+
+
+async def _async_actions_from_input(
+    hass: HomeAssistant, user_input: dict[str, Any]
+) -> tuple[dict[str, list[Any]], dict[str, str]]:
+    """Collect and validate the gesture actions from a form."""
+    actions: dict[str, list[Any]] = {}
+    errors: dict[str, str] = {}
+    for gesture in GESTURES:
+        if not (sequence := _as_list(user_input.get(gesture))):
+            continue
+        try:
+            await async_validate_sequence(hass, sequence)
+        except (vol.Invalid, HomeAssistantError):
+            errors[gesture] = "invalid_action"
+        actions[gesture] = sequence
+    return actions, errors
+
+
+def _button_data(
+    slot: str, entities: list[str], actions: dict[str, list[Any]], repeat: bool
+) -> dict[str, Any]:
+    return {
+        CONF_SLOT: slot,
+        CONF_ENTITIES: entities,
+        CONF_ACTIONS: actions,
+        CONF_REPEAT: repeat,
+    }
+
+
+def _button_subentry(
+    slot: str, entities: list[str], actions: dict[str, list[Any]], repeat: bool
+) -> ConfigSubentryData:
+    return ConfigSubentryData(
+        data=_button_data(slot, entities, actions, repeat),
+        subentry_type=SUBENTRY_BUTTON,
+        title=SLOT_TITLES[slot],
+        unique_id=slot,
+    )
 
 
 def _entities_in_use(
-    hass: HomeAssistant, exclude_entry_id: str | None = None
+    hass: HomeAssistant, exclude_subentry_id: str | None = None
 ) -> set[str]:
+    """Event entities already feeding a button on any remote."""
     in_use: set[str] = set()
     for entry in hass.config_entries.async_entries(DOMAIN):
-        if entry.entry_id == exclude_entry_id:
-            continue
-        for entities in entry.data.get(CONF_BUTTONS, {}).values():
-            in_use.update(entities)
+        for sub in entry.subentries.values():
+            if (
+                sub.subentry_type == SUBENTRY_BUTTON
+                and sub.subentry_id != exclude_subentry_id
+            ):
+                in_use.update(sub.data.get(CONF_ENTITIES, []))
     return in_use
 
 
@@ -145,12 +210,12 @@ async def _async_blueprint_inputs(
 
 def parse_blueprint_inputs(
     inputs: dict[str, Any],
-) -> tuple[dict[str, list[str]], dict[str, Any]]:
-    """Convert blueprint inputs to (entry data buttons, entry options)."""
-    buttons: dict[str, list[str]] = {}
+) -> tuple[list[ConfigSubentryData], dict[str, Any]]:
+    """Convert blueprint inputs to (button subentries, entry options)."""
+    entities: dict[str, list[str]] = {}
     for key, slot in BLUEPRINT_ENTITY_INPUTS.items():
-        if entities := _as_list(inputs.get(key)):
-            buttons[slot] = entities
+        if found := _as_list(inputs.get(key)):
+            entities[slot] = found
 
     actions: dict[str, dict[str, list[Any]]] = {}
     for key, value in inputs.items():
@@ -161,18 +226,21 @@ def parse_blueprint_inputs(
             if slot in SLOTS and (sequence := _as_list(value)):
                 actions.setdefault(slot, {})[gesture] = copy.deepcopy(sequence)
 
+    subentries = [
+        _button_subentry(slot, entities[slot], actions.get(slot, {}), False)
+        for slot in SLOTS
+        if slot in entities
+    ]
     options = {
         CONF_HOLD_MS: int(inputs.get("delay_hold", BLUEPRINT_DEFAULT_HOLD_MS)),
         CONF_DOUBLE_MS: int(inputs.get("delay_click", BLUEPRINT_DEFAULT_DOUBLE_MS)),
         CONF_REPEAT_MS: DEFAULT_REPEAT_MS,
-        CONF_ACTIONS: actions,
-        CONF_REPEAT: [],
     }
-    return buttons, options
+    return subentries, options
 
 
 # ---------------------------------------------------------------------------
-# Config flow
+# Config flow (one entry per remote)
 # ---------------------------------------------------------------------------
 
 
@@ -180,12 +248,21 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
     """Add a remote."""
 
     VERSION = 1
+    MINOR_VERSION = 2
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
         """Return the options flow."""
         return ButtonActionsOptionsFlow()
+
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Each button is a subentry under its remote."""
+        return {SUBENTRY_BUTTON: ButtonSubentryFlow}
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -207,8 +284,8 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             except NotABlueprintRemote:
                 errors[CONF_AUTOMATION] = "not_blueprint"
             else:
-                buttons, options = parse_blueprint_inputs(inputs)
-                errors = await self._async_check(buttons, options)
+                subentries, options = parse_blueprint_inputs(inputs)
+                errors = await self._async_check(subentries)
                 if not errors:
                     if user_input.get(CONF_DISABLE_SOURCE, True):
                         await self.hass.services.async_call(
@@ -218,15 +295,14 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                             blocking=True,
                         )
                     state = self.hass.states.get(automation)
-                    title = state.name if state else automation
                     return self.async_create_entry(
-                        title=title,
+                        title=state.name if state else automation,
                         data={
-                            CONF_BUTTONS: buttons,
                             CONF_PRESS_EVENT: DEFAULT_PRESS_EVENT,
                             CONF_RELEASE_EVENT: DEFAULT_RELEASE_EVENT,
                         },
                         options=options,
+                        subentries=subentries,
                     )
 
         return self.async_show_form(
@@ -250,13 +326,16 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         """Pick the event entities for a new remote."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            buttons = _buttons_from_input(user_input)
-            errors = await self._async_check(buttons, {})
+            subentries = [
+                _button_subentry(slot, entities, {}, False)
+                for slot in SLOTS
+                if (entities := _as_list(user_input.get(slot)))
+            ]
+            errors = await self._async_check(subentries)
             if not errors:
                 return self.async_create_entry(
                     title=user_input[CONF_NAME],
                     data={
-                        CONF_BUTTONS: buttons,
                         CONF_PRESS_EVENT: user_input[CONF_PRESS_EVENT],
                         CONF_RELEASE_EVENT: user_input[CONF_RELEASE_EVENT],
                     },
@@ -264,15 +343,14 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_HOLD_MS: DEFAULT_HOLD_MS,
                         CONF_DOUBLE_MS: DEFAULT_DOUBLE_MS,
                         CONF_REPEAT_MS: DEFAULT_REPEAT_MS,
-                        CONF_ACTIONS: {},
-                        CONF_REPEAT: [],
                     },
+                    subentries=subentries,
                 )
 
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME): selector.TextSelector(),
-                **_buttons_schema(),
+                **{vol.Optional(slot): _EVENT_ENTITIES for slot in SLOTS},
                 vol.Required(
                     CONF_PRESS_EVENT, default=DEFAULT_PRESS_EVENT
                 ): selector.TextSelector(),
@@ -288,15 +366,15 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def _async_check(
-        self, buttons: dict[str, list[str]], options: dict[str, Any]
+        self, subentries: list[ConfigSubentryData]
     ) -> dict[str, str]:
-        if not buttons:
+        if not subentries:
             return {"base": "no_buttons"}
-        all_entities = {e for ents in buttons.values() for e in ents}
+        all_entities = {e for sub in subentries for e in sub["data"][CONF_ENTITIES]}
         if all_entities & _entities_in_use(self.hass):
             return {"base": "already_configured"}
-        for gestures in options.get(CONF_ACTIONS, {}).values():
-            for sequence in gestures.values():
+        for sub in subentries:
+            for sequence in sub["data"][CONF_ACTIONS].values():
                 try:
                     await async_validate_sequence(self.hass, sequence)
                 except (vol.Invalid, HomeAssistantError) as err:
@@ -306,166 +384,145 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 # ---------------------------------------------------------------------------
-# Options flow
+# Options flow (remote-wide settings, the gear icon)
 # ---------------------------------------------------------------------------
 
 
-def _slot_step(
-    slot: str,
-) -> Callable[
-    [ButtonActionsOptionsFlow, dict[str, Any] | None],
-    Coroutine[Any, Any, ConfigFlowResult],
-]:
-    async def _step(
-        self: ButtonActionsOptionsFlow, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        return await self.async_configure_button(slot, user_input)
-
-    return _step
-
-
 class ButtonActionsOptionsFlow(OptionsFlow):
-    """Edit what each button does."""
-
-    def __init__(self) -> None:
-        """Initialize."""
-        self._options: dict[str, Any] = {}
-        self._buttons: dict[str, list[str]] = {}
+    """Click timing for the whole remote."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Show one menu entry per button, plus timing and sources."""
-        if not self._options:
-            self._options = copy.deepcopy(dict(self.config_entry.options))
-            self._options.setdefault(CONF_ACTIONS, {})
-            self._options.setdefault(CONF_REPEAT, [])
-            self._buttons = copy.deepcopy(
-                dict(self.config_entry.data.get(CONF_BUTTONS, {}))
-            )
-        menu = [slot for slot in SLOTS if self._buttons.get(slot)]
-        menu += ["timing", "sources", "save"]
-        return self.async_show_menu(step_id="init", menu_options=menu)
-
-    # One step per slot so each button is a single click from the menu.
-    async_step_on = _slot_step("on")
-    async_step_raise = _slot_step("raise")
-    async_step_stop = _slot_step("stop")
-    async_step_lower = _slot_step("lower")
-    async_step_off = _slot_step("off")
-    async_step_button_1 = _slot_step("button_1")
-    async_step_button_2 = _slot_step("button_2")
-    async_step_button_3 = _slot_step("button_3")
-    async_step_button_4 = _slot_step("button_4")
-
-    async def async_configure_button(
-        self, slot: str, user_input: dict[str, Any] | None
-    ) -> ConfigFlowResult:
-        """Edit the four gesture actions for one button."""
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            gestures: dict[str, list[Any]] = {}
-            for gesture in GESTURES:
-                sequence = _as_list(user_input.get(gesture))
-                if not sequence:
-                    continue
-                try:
-                    await async_validate_sequence(self.hass, sequence)
-                except (vol.Invalid, HomeAssistantError):
-                    errors[gesture] = "invalid_action"
-                gestures[gesture] = sequence
-            if not errors:
-                if gestures:
-                    self._options[CONF_ACTIONS][slot] = gestures
-                else:
-                    self._options[CONF_ACTIONS].pop(slot, None)
-                repeat = set(self._options[CONF_REPEAT])
-                if user_input.get(CONF_REPEAT):
-                    repeat.add(slot)
-                else:
-                    repeat.discard(slot)
-                self._options[CONF_REPEAT] = sorted(repeat)
-                return await self.async_step_init()
-
-        current = self._options[CONF_ACTIONS].get(slot, {})
-        suggested = user_input or {
-            **current,
-            CONF_REPEAT: slot in self._options[CONF_REPEAT],
-        }
-        schema = vol.Schema(
-            {
-                **{
-                    vol.Optional(gesture): selector.ActionSelector()
-                    for gesture in GESTURES
-                },
-                vol.Optional(CONF_REPEAT): selector.BooleanSelector(),
-            }
-        )
-        return self.async_show_form(
-            step_id=slot,
-            data_schema=self.add_suggested_values_to_schema(schema, suggested),
-            errors=errors,
-        )
-
-    async def async_step_timing(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
         """Adjust click timing."""
         if user_input is not None:
-            for key in (CONF_HOLD_MS, CONF_DOUBLE_MS, CONF_REPEAT_MS):
-                self._options[key] = int(user_input[key])
-            return await self.async_step_init()
+            return self.async_create_entry(
+                data={key: int(value) for key, value in user_input.items()}
+            )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=_timing_schema(dict(self.config_entry.options)),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Button subentry flow (add a button, or edit one with the pencil)
+# ---------------------------------------------------------------------------
+
+
+class ButtonSubentryFlow(ConfigSubentryFlow):
+    """Add or edit one button."""
+
+    def __init__(self) -> None:
+        """Initialize."""
+        self._slot: str | None = None
+        self._entities: list[str] = []
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Pick which button to add and its event entities."""
+        entry = self._get_entry()
+        used = {sub.unique_id for sub in entry.subentries.values()}
+        free = [slot for slot in SLOTS if slot not in used]
+        if not free:
+            return self.async_abort(reason="all_buttons_added")
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            entities = _as_list(user_input.get(CONF_ENTITIES))
+            if not entities:
+                errors[CONF_ENTITIES] = "no_entities"
+            elif set(entities) & _entities_in_use(self.hass):
+                errors[CONF_ENTITIES] = "already_configured"
+            else:
+                self._slot = user_input[CONF_SLOT]
+                self._entities = entities
+                return await self.async_step_actions()
 
         schema = vol.Schema(
             {
-                vol.Required(
-                    CONF_DOUBLE_MS,
-                    default=self._options.get(CONF_DOUBLE_MS, DEFAULT_DOUBLE_MS),
-                ): _ms_selector(100, 1000),
-                vol.Required(
-                    CONF_HOLD_MS,
-                    default=self._options.get(CONF_HOLD_MS, DEFAULT_HOLD_MS),
-                ): _ms_selector(300, 4000),
-                vol.Required(
-                    CONF_REPEAT_MS,
-                    default=self._options.get(CONF_REPEAT_MS, DEFAULT_REPEAT_MS),
-                ): _ms_selector(100, 2000),
+                vol.Required(CONF_SLOT, default=free[0]): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=free,
+                        translation_key=CONF_SLOT,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                ),
+                vol.Required(CONF_ENTITIES): _EVENT_ENTITIES,
             }
         )
-        return self.async_show_form(step_id="timing", data_schema=schema)
-
-    async def async_step_sources(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Change which event entities feed each button."""
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            buttons = _buttons_from_input(user_input)
-            all_entities = {e for ents in buttons.values() for e in ents}
-            if not buttons:
-                errors["base"] = "no_buttons"
-            elif all_entities & _entities_in_use(self.hass, self.config_entry.entry_id):
-                errors["base"] = "already_configured"
-            else:
-                self._buttons = buttons
-                return await self.async_step_init()
-
-        schema = vol.Schema(_buttons_schema())
         return self.async_show_form(
-            step_id="sources",
-            data_schema=self.add_suggested_values_to_schema(
-                schema, user_input or self._buttons
-            ),
+            step_id="user",
+            data_schema=self.add_suggested_values_to_schema(schema, user_input),
             errors=errors,
         )
 
-    async def async_step_save(
+    async def async_step_actions(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Store everything; the entry reloads with the new config."""
-        if self._buttons != self.config_entry.data.get(CONF_BUTTONS):
-            self.hass.config_entries.async_update_entry(
-                self.config_entry,
-                data={**self.config_entry.data, CONF_BUTTONS: self._buttons},
-            )
-        return self.async_create_entry(data=self._options)
+    ) -> SubentryFlowResult:
+        """Set what the new button does."""
+        assert self._slot is not None
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            actions, errors = await _async_actions_from_input(self.hass, user_input)
+            if not errors:
+                return self.async_create_entry(
+                    title=SLOT_TITLES[self._slot],
+                    data=_button_data(
+                        self._slot,
+                        self._entities,
+                        actions,
+                        bool(user_input.get(CONF_REPEAT)),
+                    ),
+                    unique_id=self._slot,
+                )
+
+        return self.async_show_form(
+            step_id="actions",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(_actions_schema()), user_input
+            ),
+            errors=errors,
+            description_placeholders={"button": SLOT_TITLES[self._slot]},
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Edit a button's actions and event entities."""
+        entry = self._get_entry()
+        subentry = self._get_reconfigure_subentry()
+        slot = subentry.data[CONF_SLOT]
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            entities = _as_list(user_input.get(CONF_ENTITIES))
+            actions, errors = await _async_actions_from_input(self.hass, user_input)
+            if not entities:
+                errors[CONF_ENTITIES] = "no_entities"
+            elif set(entities) & _entities_in_use(self.hass, subentry.subentry_id):
+                errors[CONF_ENTITIES] = "already_configured"
+            if not errors:
+                return self.async_update_and_abort(
+                    entry,
+                    subentry,
+                    data=_button_data(
+                        slot, entities, actions, bool(user_input.get(CONF_REPEAT))
+                    ),
+                )
+
+        suggested = user_input or {
+            CONF_ENTITIES: subentry.data.get(CONF_ENTITIES, []),
+            **subentry.data.get(CONF_ACTIONS, {}),
+            CONF_REPEAT: subentry.data.get(CONF_REPEAT, False),
+        }
+        schema = vol.Schema(
+            {vol.Required(CONF_ENTITIES): _EVENT_ENTITIES, **_actions_schema()}
+        )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(schema, suggested),
+            errors=errors,
+            description_placeholders={"button": subentry.title},
+        )
