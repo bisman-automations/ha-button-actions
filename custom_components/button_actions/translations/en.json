@@ -3,6 +3,7 @@
     "step": {
       "user": {
         "title": "Add a button remote",
+        "description": "Import an existing Pico blueprint automation, or start a new remote from scratch.",
         "menu_options": {
           "import_blueprint": "Import from a Pico blueprint automation",
           "manual": "Set up a new remote"
@@ -62,6 +63,7 @@
     "step": {
       "init": {
         "title": "Configure remote",
+        "description": "Pick a button to set what its short, double and long presses do, or adjust timing. Choose Save when you're done.",
         "menu_options": {
           "on": "On / top button",
           "raise": "Raise / up button",

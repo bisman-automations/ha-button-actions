@@ -30,9 +30,9 @@ class ButtonGestureEvent(EventEntity):
 
     _attr_has_entity_name = True
     _attr_device_class = EventDeviceClass.BUTTON
-    _attr_event_types = list(GESTURES)
 
     def __init__(self, entry: ButtonActionsConfigEntry, slot: str) -> None:
+        self._attr_event_types = list(GESTURES)
         self._entry = entry
         self._slot = slot
         self._attr_unique_id = f"{entry.entry_id}_{slot}"
