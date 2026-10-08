@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -32,11 +33,13 @@ from .const import (
     BLUEPRINT_ENTITY_INPUTS,
     BLUEPRINT_GESTURE_PREFIXES,
     CONF_ACTIONS,
+    CONF_BUTTON_COUNT,
     CONF_DETECT_ALL,
     CONF_DOUBLE_MS,
     CONF_ENTITIES,
     CONF_EVENT_ROLES,
     CONF_HOLD_MS,
+    CONF_LAYOUT,
     CONF_PICO_BUTTONS,
     CONF_PRESS_EVENT,
     CONF_RELEASE_EVENT,
@@ -45,6 +48,8 @@ from .const import (
     CONF_SLOT,
     CONF_SOURCE,
     CONF_SOURCE_AUTOMATION,
+    CONF_SUPPORTS_DOUBLE,
+    CONF_SUPPORTS_LONG,
     DEFAULT_DOUBLE_MS,
     DEFAULT_HOLD_MS,
     DEFAULT_PRESS_EVENT,
@@ -52,14 +57,25 @@ from .const import (
     DEFAULT_REPEAT_MS,
     DOMAIN,
     GESTURES,
+    LAYOUT_NUMBERED,
+    LAYOUT_PICO,
     LUTRON_DOMAIN,
+    MAX_BUTTONS,
+    NUMBERED_SLOTS,
+    PICO_SLOTS,
     SLOT_TITLES,
     SLOTS,
     SOURCE_EVENT_ENTITY,
     SOURCE_LUTRON,
     SUBENTRY_BUTTON,
+    button_title,
 )
-from .controller import async_validate_sequence, event_role_overrides
+from .controller import (
+    async_validate_sequence,
+    event_role_overrides,
+    remote_capabilities,
+    supported_gestures,
+)
 from .events import ROLE_PRESS, ROLE_RELEASE, ROLES, resolve_role
 from .lutron import async_pico_buttons, lutron_device_for_entities
 
@@ -157,12 +173,40 @@ def _timing_schema(options: dict[str, Any]) -> vol.Schema:
     )
 
 
-def _actions_schema() -> dict[vol.Marker, Any]:
-    return {
-        **{vol.Optional(gesture): selector.ActionSelector() for gesture in GESTURES},
-        vol.Optional(CONF_REPEAT): selector.BooleanSelector(),
-        vol.Optional(CONF_DETECT_ALL): selector.BooleanSelector(),
+def _actions_schema(data: Mapping[str, Any]) -> dict[vol.Marker, Any]:
+    """Action fields for the gestures this remote supports."""
+    supports_double, supports_long = remote_capabilities(data)
+    fields: dict[vol.Marker, Any] = {
+        vol.Optional(gesture): selector.ActionSelector()
+        for gesture in supported_gestures(data)
     }
+    if supports_long:
+        fields[vol.Optional(CONF_REPEAT)] = selector.BooleanSelector()
+    if supports_double or supports_long:
+        fields[vol.Optional(CONF_DETECT_ALL)] = selector.BooleanSelector()
+    return fields
+
+
+def _keep_hidden_actions(
+    data: Mapping[str, Any],
+    existing: Mapping[str, list[Any]],
+    actions: dict[str, list[Any]],
+) -> dict[str, list[Any]]:
+    """Keep actions for gestures the form hid, in case they're turned back on."""
+    shown = set(supported_gestures(data))
+    return {
+        **{g: a for g, a in existing.items() if g not in shown and a},
+        **actions,
+    }
+
+
+def _layout_slots(entry: ConfigEntry) -> tuple[str, ...]:
+    """The buttons a remote can have."""
+    if _is_lutron(entry):
+        return tuple(entry.data.get(CONF_PICO_BUTTONS, []))
+    if entry.data.get(CONF_LAYOUT) == LAYOUT_NUMBERED:
+        return NUMBERED_SLOTS
+    return PICO_SLOTS
 
 
 async def _async_actions_from_input(
@@ -454,6 +498,8 @@ class RemoteCopy:
     title: str
     options: dict[str, Any]
     event_roles: dict[str, str]
+    # Layout and capabilities, copied as they are.
+    shape: dict[str, Any]
     # One dict per button: slot, actions, repeat, detect_all.
     buttons: list[dict[str, Any]]
 
@@ -495,6 +541,11 @@ def copy_remote(
         title=title,
         options=dict(entry.options),
         event_roles=event_role_overrides(entry.data),
+        shape={
+            key: entry.data[key]
+            for key in (CONF_LAYOUT, CONF_SUPPORTS_DOUBLE, CONF_SUPPORTS_LONG)
+            if key in entry.data
+        },
         buttons=buttons,
     )
 
@@ -516,6 +567,8 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         self._disable_source = True
         self._copy: RemoteCopy | None = None
         self._reconfigure_title: str | None = None
+        self._reconfigure_caps: dict[str, bool] = {}
+        self._manual: dict[str, Any] | None = None
 
     @staticmethod
     @callback
@@ -645,6 +698,10 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_update_reload_and_abort(entry, title=title)
             else:
                 self._reconfigure_title = title
+                self._reconfigure_caps = {
+                    CONF_SUPPORTS_DOUBLE: user_input.get(CONF_SUPPORTS_DOUBLE, True),
+                    CONF_SUPPORTS_LONG: user_input.get(CONF_SUPPORTS_LONG, True),
+                }
                 return await self.async_step_reconfigure_events()
 
         fields: dict[vol.Marker, Any] = {
@@ -657,13 +714,25 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_DEVICE_ID: entry.data.get(CONF_DEVICE_ID),
             }
         else:
+            current_double, current_long = remote_capabilities(entry.data)
+            fields[vol.Optional(CONF_SUPPORTS_DOUBLE, default=current_double)] = (
+                selector.BooleanSelector()
+            )
+            fields[vol.Optional(CONF_SUPPORTS_LONG, default=current_long)] = (
+                selector.BooleanSelector()
+            )
             fields[vol.Optional(CONF_DEVICE_ID)] = _PICO_DEVICE
             all_entities = [
                 entity
                 for sub in entry.subentries.values()
                 for entity in sub.data.get(CONF_ENTITIES, [])
             ]
-            suggested = {CONF_NAME: entry.title}
+            supports_double, supports_long = remote_capabilities(entry.data)
+            suggested = {
+                CONF_NAME: entry.title,
+                CONF_SUPPORTS_DOUBLE: supports_double,
+                CONF_SUPPORTS_LONG: supports_long,
+            }
             if pico := lutron_device_for_entities(self.hass, all_entities):
                 suggested[CONF_DEVICE_ID] = pico
 
@@ -700,6 +769,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                 if key not in (CONF_PRESS_EVENT, CONF_RELEASE_EVENT)
             }
             data[CONF_SOURCE] = SOURCE_EVENT_ENTITY
+            data.update(self._reconfigure_caps)
             data[CONF_EVENT_ROLES] = (
                 {t: user_input[t] for t in event_types if t in user_input}
                 if user_input is not None
@@ -986,6 +1056,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                     data={
                         CONF_SOURCE: SOURCE_EVENT_ENTITY,
                         CONF_EVENT_ROLES: copied.event_roles,
+                        **copied.shape,
                     },
                     options=copied.options,
                     subentries=subentries,
@@ -994,28 +1065,77 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         schema = vol.Schema(
             {vol.Required(b[CONF_SLOT]): _EVENT_ENTITIES for b in copied.buttons}
         )
+        numbered = copied.shape.get(CONF_LAYOUT) == LAYOUT_NUMBERED
         return self.async_show_form(
-            step_id="duplicate_entities",
+            step_id="duplicate_numbered" if numbered else "duplicate_entities",
             data_schema=self.add_suggested_values_to_schema(schema, user_input),
             errors=errors,
         )
 
+    async def async_step_duplicate_numbered(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Numbered-button version of the duplicate entities form."""
+        return await self.async_step_duplicate_entities(user_input)
+
     async def async_step_manual(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Pick the event entities for a new remote."""
+        """Name the remote, and say how many buttons it has and what it can do."""
+        if user_input is not None:
+            self._manual = {
+                CONF_NAME: user_input[CONF_NAME],
+                CONF_BUTTON_COUNT: int(user_input[CONF_BUTTON_COUNT]),
+                CONF_SUPPORTS_DOUBLE: user_input.get(CONF_SUPPORTS_DOUBLE, True),
+                CONF_SUPPORTS_LONG: user_input.get(CONF_SUPPORTS_LONG, True),
+            }
+            return await self.async_step_manual_buttons()
+
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_NAME): selector.TextSelector(),
+                vol.Required(CONF_BUTTON_COUNT, default=2): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=1,
+                        max=MAX_BUTTONS,
+                        step=1,
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Required(
+                    CONF_SUPPORTS_DOUBLE, default=True
+                ): selector.BooleanSelector(),
+                vol.Required(
+                    CONF_SUPPORTS_LONG, default=True
+                ): selector.BooleanSelector(),
+            }
+        )
+        return self.async_show_form(step_id="manual", data_schema=schema)
+
+    async def async_step_manual_buttons(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick the event entity for each button."""
+        manual = self._manual
+        assert manual is not None
+        slots = NUMBERED_SLOTS[: manual[CONF_BUTTON_COUNT]]
         errors: dict[str, str] = {}
         if user_input is not None:
             subentries = [
-                _button_subentry(slot, entities, {}, False)
-                for slot in SLOTS
-                if (entities := _as_list(user_input.get(slot)))
+                _button_subentry(slot, _as_list(user_input.get(slot)), {}, False)
+                for slot in slots
             ]
             errors = await self._async_check(subentries)
             if not errors:
                 return self.async_create_entry(
-                    title=user_input[CONF_NAME],
-                    data={CONF_SOURCE: SOURCE_EVENT_ENTITY, CONF_EVENT_ROLES: {}},
+                    title=manual[CONF_NAME],
+                    data={
+                        CONF_SOURCE: SOURCE_EVENT_ENTITY,
+                        CONF_EVENT_ROLES: {},
+                        CONF_LAYOUT: LAYOUT_NUMBERED,
+                        CONF_SUPPORTS_DOUBLE: manual[CONF_SUPPORTS_DOUBLE],
+                        CONF_SUPPORTS_LONG: manual[CONF_SUPPORTS_LONG],
+                    },
                     options={
                         CONF_HOLD_MS: DEFAULT_HOLD_MS,
                         CONF_DOUBLE_MS: DEFAULT_DOUBLE_MS,
@@ -1024,22 +1144,18 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                     subentries=subentries,
                 )
 
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_NAME): selector.TextSelector(),
-                **{vol.Optional(slot): _EVENT_ENTITIES for slot in SLOTS},
-            }
-        )
+        schema = vol.Schema({vol.Required(slot): _EVENT_ENTITIES for slot in slots})
         return self.async_show_form(
-            step_id="manual",
+            step_id="manual_buttons",
             data_schema=self.add_suggested_values_to_schema(schema, user_input),
             errors=errors,
+            description_placeholders={"remote": manual[CONF_NAME]},
         )
 
     async def _async_check(
         self, subentries: list[ConfigSubentryData]
     ) -> dict[str, str]:
-        if not subentries:
+        if not subentries or any(not sub["data"][CONF_ENTITIES] for sub in subentries):
             return {"base": "no_buttons"}
         all_entities = {e for sub in subentries for e in sub["data"][CONF_ENTITIES]}
         if all_entities & _entities_in_use(self.hass):
@@ -1100,8 +1216,8 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
         entry = self._get_entry()
         lutron = _is_lutron(entry)
         used = {sub.unique_id for sub in entry.subentries.values()}
-        available = entry.data.get(CONF_PICO_BUTTONS, []) if lutron else SLOTS
-        free = [slot for slot in available if slot not in used]
+        numbered = not lutron and entry.data.get(CONF_LAYOUT) == LAYOUT_NUMBERED
+        free = [slot for slot in _layout_slots(entry) if slot not in used]
         if not free:
             return self.async_abort(reason="all_buttons_added")
 
@@ -1125,7 +1241,7 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
                 vol.Required(CONF_SLOT, default=free[0]): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=free,
-                        translation_key=CONF_SLOT,
+                        translation_key="numbered_slot" if numbered else CONF_SLOT,
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
@@ -1143,6 +1259,7 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
     ) -> SubentryFlowResult:
         """Set what the new button does."""
         assert self._slot is not None
+        entry = self._get_entry()
         errors: dict[str, str] = {}
         if user_input is not None:
             actions, errors = await _async_actions_from_input(self.hass, user_input)
@@ -1162,10 +1279,14 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
         return self.async_show_form(
             step_id="actions",
             data_schema=self.add_suggested_values_to_schema(
-                vol.Schema(_actions_schema()), user_input
+                vol.Schema(_actions_schema(entry.data)), user_input
             ),
             errors=errors,
-            description_placeholders={"button": SLOT_TITLES[self._slot]},
+            description_placeholders={
+                "button": button_title(
+                    entry.data.get(CONF_LAYOUT, LAYOUT_PICO), self._slot, [self._slot]
+                )
+            },
         )
 
     async def async_step_reconfigure(
@@ -1188,6 +1309,9 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
             elif set(entities) & _entities_in_use(self.hass, subentry.subentry_id):
                 errors[CONF_ENTITIES] = "already_configured"
             if not errors:
+                actions = _keep_hidden_actions(
+                    entry.data, subentry.data.get(CONF_ACTIONS, {}), actions
+                )
                 return self.async_update_and_abort(
                     entry,
                     subentry,
@@ -1207,9 +1331,12 @@ class ButtonSubentryFlow(ConfigSubentryFlow):
             CONF_DETECT_ALL: subentry.data.get(CONF_DETECT_ALL, False),
         }
         schema = vol.Schema(
-            _actions_schema()
+            _actions_schema(entry.data)
             if lutron
-            else {vol.Required(CONF_ENTITIES): _EVENT_ENTITIES, **_actions_schema()}
+            else {
+                vol.Required(CONF_ENTITIES): _EVENT_ENTITIES,
+                **_actions_schema(entry.data),
+            }
         )
         return self.async_show_form(
             step_id="reconfigure",

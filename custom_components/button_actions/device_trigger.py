@@ -20,7 +20,7 @@ from homeassistant.helpers.trigger import TriggerActionType, TriggerInfo
 from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN, GESTURE_EVENT, GESTURES, SLOTS
-from .controller import buttons_from_entry
+from .controller import buttons_from_entry, supported_gestures
 
 CONF_SUBTYPE = "subtype"
 
@@ -56,7 +56,7 @@ async def async_get_triggers(
             CONF_SUBTYPE: button.slot,
         }
         for button in buttons_from_entry(entry)
-        for gesture in GESTURES
+        for gesture in supported_gestures(entry.data)
     ]
 
 

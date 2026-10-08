@@ -31,7 +31,8 @@ LUTRON_BUTTON_EVENT: Final = "lutron_caseta_button_event"
 LUTRON_ACTION_PRESS: Final = "press"
 LUTRON_ACTION_RELEASE: Final = "release"
 
-# Button slots, in the order they appear on a Lutron Pico.
+# Button slots. Pico-shaped remotes use named slots; numbered remotes use
+# button_1 ... button_12. Pico scene buttons are button_1 ... button_4.
 SLOT_ON: Final = "on"
 SLOT_RAISE: Final = "raise"
 SLOT_STOP: Final = "stop"
@@ -42,7 +43,9 @@ SLOT_BUTTON_2: Final = "button_2"
 SLOT_BUTTON_3: Final = "button_3"
 SLOT_BUTTON_4: Final = "button_4"
 
-SLOTS: Final = (
+MAX_BUTTONS: Final = 12
+NUMBERED_SLOTS: Final = tuple(f"button_{n}" for n in range(1, MAX_BUTTONS + 1))
+PICO_SLOTS: Final = (
     SLOT_ON,
     SLOT_RAISE,
     SLOT_STOP,
@@ -53,6 +56,7 @@ SLOTS: Final = (
     SLOT_BUTTON_3,
     SLOT_BUTTON_4,
 )
+SLOTS: Final = (SLOT_ON, SLOT_RAISE, SLOT_STOP, SLOT_LOWER, SLOT_OFF, *NUMBERED_SLOTS)
 
 SLOT_ICONS: Final = {
     SLOT_ON: "mdi:power-on",
@@ -65,6 +69,7 @@ SLOT_ICONS: Final = {
     SLOT_BUTTON_3: "mdi:numeric-3-circle",
     SLOT_BUTTON_4: "mdi:numeric-4-circle",
 }
+NUMBERED_ICON: Final = "mdi:gesture-tap-button"
 
 # The order buttons sit on a Pico, top to bottom. Off is always the bottom
 # button, including on scene Picos, so it comes after the scene buttons.
@@ -73,12 +78,34 @@ DISPLAY_ORDER: Final = (
     SLOT_RAISE,
     SLOT_STOP,
     SLOT_LOWER,
-    SLOT_BUTTON_1,
-    SLOT_BUTTON_2,
-    SLOT_BUTTON_3,
-    SLOT_BUTTON_4,
+    *NUMBERED_SLOTS,
     SLOT_OFF,
 )
+
+# ---------------------------------------------------------------------------
+# Remote layout and capabilities
+# ---------------------------------------------------------------------------
+# "pico": On / Raise / Middle / Lower / Off and scene buttons (default, and
+# every remote set up before 1.6.0). "numbered": Button 1 ... Button N.
+CONF_LAYOUT: Final = "layout"
+LAYOUT_PICO: Final = "pico"
+LAYOUT_NUMBERED: Final = "numbered"
+
+# Whether the remote can do double and long presses. Missing means yes.
+CONF_SUPPORTS_DOUBLE: Final = "supports_double"
+CONF_SUPPORTS_LONG: Final = "supports_long"
+CONF_BUTTON_COUNT: Final = "button_count"
+
+
+def slot_number(slot: str) -> int:
+    """The N in button_N."""
+    return int(slot.rsplit("_", 1)[1])
+
+
+def numbered_label(slot: str, slots: list[str] | tuple[str, ...]) -> str:
+    """ "3", or "03" on remotes with 10+ buttons so names still sort."""
+    width = 2 if any(slot_number(s) >= 10 for s in slots if s in NUMBERED_SLOTS) else 1
+    return f"{slot_number(slot):0{width}d}"
 
 
 def button_positions(slots: list[str] | tuple[str, ...]) -> dict[str, int]:
@@ -93,21 +120,25 @@ def button_positions(slots: list[str] | tuple[str, ...]) -> dict[str, int]:
 
 
 def numbered_title(position: int, slot: str) -> str:
-    """Subentry title such as "3 · Middle button"."""
+    """Pico subentry title such as "3 · Middle button"."""
     return f"{position} · {SLOT_TITLES[slot]}"
 
 
-# Subentry titles. Stored with the subentry, so plain English.
+def button_title(layout: str, slot: str, slots: list[str] | tuple[str, ...]) -> str:
+    """The title a button gets on the integration page."""
+    if layout == LAYOUT_NUMBERED:
+        return f"Button {numbered_label(slot, slots)}"
+    return numbered_title(button_positions(slots)[slot], slot)
+
+
+# Pico subentry titles. Stored with the subentry, so plain English.
 SLOT_TITLES: Final = {
     SLOT_ON: "On button",
     SLOT_RAISE: "Raise button",
     SLOT_STOP: "Middle button",
     SLOT_LOWER: "Lower button",
     SLOT_OFF: "Off button",
-    SLOT_BUTTON_1: "Scene button 1",
-    SLOT_BUTTON_2: "Scene button 2",
-    SLOT_BUTTON_3: "Scene button 3",
-    SLOT_BUTTON_4: "Scene button 4",
+    **{slot: f"Scene button {slot_number(slot)}" for slot in NUMBERED_SLOTS},
 }
 
 # ---------------------------------------------------------------------------

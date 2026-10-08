@@ -40,6 +40,8 @@ from .const import (
     CONF_REPEAT_MS,
     CONF_SLOT,
     CONF_SOURCE,
+    CONF_SUPPORTS_DOUBLE,
+    CONF_SUPPORTS_LONG,
     DEFAULT_DOUBLE_MS,
     DEFAULT_HOLD_MS,
     DEFAULT_PRESS_EVENT,
@@ -133,8 +135,30 @@ def _dispatch(detector: GestureDetector, role: str) -> None:
         detector.hold()
 
 
+def remote_capabilities(data: Mapping[str, Any]) -> tuple[bool, bool]:
+    """(supports double press, supports long press). Missing means yes."""
+    return (
+        bool(data.get(CONF_SUPPORTS_DOUBLE, True)),
+        bool(data.get(CONF_SUPPORTS_LONG, True)),
+    )
+
+
+def supported_gestures(data: Mapping[str, Any]) -> list[str]:
+    """The gestures this remote can produce, in display order."""
+    double, long = remote_capabilities(data)
+    return [
+        gesture
+        for gesture in GESTURES
+        if (gesture != GESTURE_DOUBLE or double)
+        and (gesture not in (GESTURE_LONG, GESTURE_LONG_RELEASE) or long)
+    ]
+
+
 def settings_for_button(
-    options: dict[str, Any], button: ButtonConfig
+    options: dict[str, Any],
+    button: ButtonConfig,
+    supports_double: bool = True,
+    supports_long: bool = True,
 ) -> GestureSettings:
     """Build detector settings from what the user configured for a button."""
     has_long = bool(button.actions.get(GESTURE_LONG))
@@ -142,11 +166,15 @@ def settings_for_button(
         hold_ms=int(options.get(CONF_HOLD_MS, DEFAULT_HOLD_MS)),
         double_ms=int(options.get(CONF_DOUBLE_MS, DEFAULT_DOUBLE_MS)),
         repeat_ms=int(options.get(CONF_REPEAT_MS, DEFAULT_REPEAT_MS)),
-        detect_double=button.detect_all or bool(button.actions.get(GESTURE_DOUBLE)),
-        detect_hold=button.detect_all
-        or has_long
-        or bool(button.actions.get(GESTURE_LONG_RELEASE)),
-        repeat=button.repeat and has_long,
+        detect_double=supports_double
+        and (button.detect_all or bool(button.actions.get(GESTURE_DOUBLE))),
+        detect_hold=supports_long
+        and (
+            button.detect_all
+            or has_long
+            or bool(button.actions.get(GESTURE_LONG_RELEASE))
+        ),
+        repeat=supports_long and button.repeat and has_long,
     )
 
 
@@ -204,7 +232,9 @@ class ButtonActionsController:
                 if actions := button.actions.get(gesture):
                     await self._async_compile(button.slot, gesture, actions)
 
-            settings = settings_for_button(self.entry.options, button)
+            settings = settings_for_button(
+                self.entry.options, button, *remote_capabilities(self.entry.data)
+            )
             keys = [button.slot] if self.source == SOURCE_LUTRON else button.entities
             for key in keys:
                 self._detectors[key] = (

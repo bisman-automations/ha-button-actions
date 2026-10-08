@@ -153,39 +153,45 @@ async def test_import_rejects_non_blueprint(hass: HomeAssistant) -> None:
 
 
 async def test_manual_and_duplicate(hass: HomeAssistant) -> None:
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"next_step_id": "manual"}
-    )
+    async def _start():
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"next_step_id": "manual"}
+        )
+        return await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                "name": "Office Hub",
+                "button_count": 2,
+                "supports_double": True,
+                "supports_long": False,
+            },
+        )
+
+    result = await _start()
+    assert result["step_id"] == "manual_buttons"
+    assert list(result["data_schema"].schema) == ["button_1", "button_2"]
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {
-            "name": "Office Remote",
-            "on": ["event.office_on"],
-            "off": ["event.office_off"],
-        },
+        {"button_1": ["event.office_1"], "button_2": ["event.office_2"]},
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    subs = {s.unique_id: s for s in result["result"].subentries.values()}
+    entry = result["result"]
+    assert entry.data["layout"] == "numbered"
+    assert entry.data["supports_double"] is True
+    assert entry.data["supports_long"] is False
+    subs = {s.unique_id: s for s in entry.subentries.values()}
     assert {k: v.data[CONF_ENTITIES] for k, v in subs.items()} == {
-        "on": ["event.office_on"],
-        "off": ["event.office_off"],
+        "button_1": ["event.office_1"],
+        "button_2": ["event.office_2"],
     }
 
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": config_entries.SOURCE_USER}
-    )
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"next_step_id": "manual"}
-    )
+    result = await _start()
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {
-            "name": "Again",
-            "on": ["event.office_on"],
-        },
+        {"button_1": ["event.office_1"], "button_2": ["event.other"]},
     )
     assert result["errors"] == {"base": "already_configured"}
 
