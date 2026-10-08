@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-07
+
+### Changed
+
+- Buttons are numbered in the order they sit on the remote, top to bottom, so Home Assistant's alphabetical lists match the remote. Gesture entities read "1 · On", "2 · Raise", "3 · Middle", "4 · Lower", "5 · Off", and buttons on the integration page read "1 · On button" and so on. Off is always last, including on scene Picos.
+- Existing remotes are renumbered automatically. Entity IDs don't change, and entities or buttons you renamed yourself keep your names.
+
 ## [1.4.0] - 2026-10-07
 
 ### Added
@@ -77,7 +84,8 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.1.0...v1.2.0

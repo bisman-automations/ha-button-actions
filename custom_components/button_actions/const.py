@@ -63,6 +63,37 @@ SLOT_ICONS: Final = {
     SLOT_BUTTON_4: "mdi:numeric-4-circle",
 }
 
+# The order buttons sit on a Pico, top to bottom. Off is always the bottom
+# button, including on scene Picos, so it comes after the scene buttons.
+DISPLAY_ORDER: Final = (
+    SLOT_ON,
+    SLOT_RAISE,
+    SLOT_STOP,
+    SLOT_LOWER,
+    SLOT_BUTTON_1,
+    SLOT_BUTTON_2,
+    SLOT_BUTTON_3,
+    SLOT_BUTTON_4,
+    SLOT_OFF,
+)
+
+
+def button_positions(slots: list[str] | tuple[str, ...]) -> dict[str, int]:
+    """Number a remote's buttons 1, 2, 3... in the order they sit on the remote.
+
+    Home Assistant lists entities and subentries alphabetically, so these
+    numbers are put at the front of names to keep the remote's order.
+    """
+    present = set(slots)
+    ordered = [slot for slot in DISPLAY_ORDER if slot in present]
+    return {slot: index for index, slot in enumerate(ordered, start=1)}
+
+
+def numbered_title(position: int, slot: str) -> str:
+    """Subentry title such as "3 · Middle button"."""
+    return f"{position} · {SLOT_TITLES[slot]}"
+
+
 # Subentry titles. Stored with the subentry, so plain English.
 SLOT_TITLES: Final = {
     SLOT_ON: "On button",
