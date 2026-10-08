@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-08
+
+### Added
+
+- Set up any remote by saying how many buttons it has (1–12) and whether it supports double press and long press. Its buttons are named Button 1, Button 2 and so on.
+- Gestures a remote doesn't support aren't offered in its button forms, aren't timed, and aren't listed as device triggers or gesture entity event types. Without double press, short presses always fire instantly; without long press, holding a button counts as a short press.
+- **Reconfigure** can turn double and long press support on or off. Actions for a gesture that's turned off are kept, in case it's turned back on.
+- **Add button** on a numbered remote offers the next button numbers.
+- Remotes with 10 or more buttons number them 01, 02… so they stay in order.
+
+### Changed
+
+- "Set up a remote from event entities" is now "Another remote or button device", and uses the new numbered setup. Lutron Pico remotes keep their named buttons through the Pico, import and duplicate options.
+- Existing remotes are unchanged: they keep their buttons and support every gesture.
+
 ## [1.5.0] - 2026-10-08
 
 ### Added
@@ -100,7 +115,8 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.3.0...v1.4.0

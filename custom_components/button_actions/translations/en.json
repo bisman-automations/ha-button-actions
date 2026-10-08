@@ -3,13 +3,13 @@
     "step": {
       "user": {
         "title": "Add a button remote",
-        "description": "Use a Pico from the Lutron Caséta integration, import Pico blueprint automations, copy a remote you already have, or set up a remote from event entities.",
+        "description": "Use a Pico from the Lutron Caséta integration, import Pico blueprint automations, copy a remote you already have, or set up any other remote or button device.",
         "menu_options": {
           "lutron": "Lutron Caséta Pico",
           "import_blueprint": "Import from a Pico blueprint automation",
           "import_all": "Import all Pico blueprint automations",
           "duplicate": "Duplicate an existing remote",
-          "manual": "Set up a remote from event entities"
+          "manual": "Another remote or button device"
         }
       },
       "import_blueprint": {
@@ -24,30 +24,17 @@
         }
       },
       "manual": {
-        "title": "Set up a new remote",
-        "description": "Pick the event entities for each button the remote has, and leave the rest empty. Button Actions works out what each event type means (press, release, single, double, hold) from the device. If a device needs something different, change it later under Reconfigure.",
+        "title": "Set up a remote",
+        "description": "Tell Button Actions about the remote. Its buttons are numbered Button 1, Button 2 and so on, and only the gestures it supports are offered.",
         "data": {
           "name": "Name",
-          "on": "On / top button",
-          "raise": "Raise / up button",
-          "stop": "Middle button",
-          "lower": "Lower / down button",
-          "off": "Off / bottom button",
-          "button_1": "Scene button 1",
-          "button_2": "Scene button 2",
-          "button_3": "Scene button 3",
-          "button_4": "Scene button 4"
+          "button_count": "Number of buttons",
+          "supports_double": "Supports double press",
+          "supports_long": "Supports long press"
         },
         "data_description": {
-          "on": "Event entities for this button. Leave empty if the remote doesn't have it.",
-          "raise": "Event entities for this button. Leave empty if the remote doesn't have it.",
-          "stop": "Event entities for this button. Leave empty if the remote doesn't have it.",
-          "lower": "Event entities for this button. Leave empty if the remote doesn't have it.",
-          "off": "Event entities for this button. Leave empty if the remote doesn't have it.",
-          "button_1": "Event entities for this button. Leave empty if the remote doesn't have it.",
-          "button_2": "Event entities for this button. Leave empty if the remote doesn't have it.",
-          "button_3": "Event entities for this button. Leave empty if the remote doesn't have it.",
-          "button_4": "Event entities for this button. Leave empty if the remote doesn't have it."
+          "supports_double": "Turn off if the remote can't be pressed twice quickly, or you don't want double presses. Short presses then always fire instantly.",
+          "supports_long": "Turn off if the remote can't be held down, or you don't want long presses. Holding a button then counts as a short press."
         }
       },
       "lutron": {
@@ -63,13 +50,17 @@
       },
       "reconfigure": {
         "title": "Reconfigure remote",
-        "description": "Rename this remote. To read presses straight from the Lutron Caséta integration instead, pick the Pico below; every button keeps its actions. Otherwise you'll check how its event types are used next.",
+        "description": "Rename this remote, or change what it supports. To read presses straight from the Lutron Caséta integration instead, pick the Pico below; every button keeps its actions. Otherwise you'll check how its event types are used next.",
         "data": {
           "name": "Name",
-          "device_id": "Switch to Lutron Caséta Pico"
+          "device_id": "Switch to Lutron Caséta Pico",
+          "supports_double": "Supports double press",
+          "supports_long": "Supports long press"
         },
         "data_description": {
-          "device_id": "Optional. Once switched, this remote no longer uses its event entities, so other integrations that provide them are no longer needed for it."
+          "device_id": "Optional. Once switched, this remote no longer uses its event entities, so other integrations that provide them are no longer needed for it.",
+          "supports_double": "Turn off if the remote can't be pressed twice quickly, or you don't want double presses. Short presses then always fire instantly.",
+          "supports_long": "Turn off if the remote can't be held down, or you don't want long presses. Holding a button then counts as a short press."
         }
       },
       "reconfigure_lutron": {
@@ -146,6 +137,42 @@
       "reconfigure_events": {
         "title": "Event types",
         "description": "These are the event types {remote}'s buttons send, and what each one means. They're filled in automatically; change one only if presses aren't detected correctly.\n\n- **Pressed down** and **Released**: Button Actions times short, double and long presses itself.\n- **Full press**: one event for a whole press and release.\n- **Short press**, **Double press**, **Held down**: the device detected the gesture itself."
+      },
+      "manual_buttons": {
+        "title": "Pick each button",
+        "description": "Choose the event entity for each button on {remote}. What each event type means is worked out automatically; you can check it later under Reconfigure.",
+        "data": {
+          "button_1": "Button 1",
+          "button_2": "Button 2",
+          "button_3": "Button 3",
+          "button_4": "Button 4",
+          "button_5": "Button 5",
+          "button_6": "Button 6",
+          "button_7": "Button 7",
+          "button_8": "Button 8",
+          "button_9": "Button 9",
+          "button_10": "Button 10",
+          "button_11": "Button 11",
+          "button_12": "Button 12"
+        }
+      },
+      "duplicate_numbered": {
+        "title": "Pick the event entities",
+        "description": "Choose the event entity for each button on the new remote.",
+        "data": {
+          "button_1": "Button 1",
+          "button_2": "Button 2",
+          "button_3": "Button 3",
+          "button_4": "Button 4",
+          "button_5": "Button 5",
+          "button_6": "Button 6",
+          "button_7": "Button 7",
+          "button_8": "Button 8",
+          "button_9": "Button 9",
+          "button_10": "Button 10",
+          "button_11": "Button 11",
+          "button_12": "Button 12"
+        }
       }
     },
     "error": {
@@ -278,6 +305,22 @@
         "hold": "Held down (detected by the device)",
         "ignore": "Ignore"
       }
+    },
+    "numbered_slot": {
+      "options": {
+        "button_1": "Button 1",
+        "button_2": "Button 2",
+        "button_3": "Button 3",
+        "button_4": "Button 4",
+        "button_5": "Button 5",
+        "button_6": "Button 6",
+        "button_7": "Button 7",
+        "button_8": "Button 8",
+        "button_9": "Button 9",
+        "button_10": "Button 10",
+        "button_11": "Button 11",
+        "button_12": "Button 12"
+      }
     }
   },
   "entity": {
@@ -398,6 +441,19 @@
             }
           }
         }
+      },
+      "numbered": {
+        "name": "Button {number}",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "short_press": "Short press",
+              "double_press": "Double press",
+              "long_press": "Long press",
+              "long_release": "Release after long press"
+            }
+          }
+        }
       }
     }
   },
@@ -435,10 +491,18 @@
       "stop": "Middle button",
       "lower": "Lower button",
       "off": "Off button",
-      "button_1": "Scene button 1",
-      "button_2": "Scene button 2",
-      "button_3": "Scene button 3",
-      "button_4": "Scene button 4"
+      "button_1": "Button 1",
+      "button_2": "Button 2",
+      "button_3": "Button 3",
+      "button_4": "Button 4",
+      "button_5": "Button 5",
+      "button_6": "Button 6",
+      "button_7": "Button 7",
+      "button_8": "Button 8",
+      "button_9": "Button 9",
+      "button_10": "Button 10",
+      "button_11": "Button 11",
+      "button_12": "Button 12"
     }
   }
 }

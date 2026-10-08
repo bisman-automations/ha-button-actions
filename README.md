@@ -79,11 +79,19 @@ Pick a remote to copy and give the copy a name. Every button's actions, its repe
 
 Use **Find** and **Replace with** to change text in every copied action at once. For example, find `boys_bedroom` and replace it with `girls_bedroom` to retarget a whole remote's areas and lamps. Then choose where the copy reads presses from: a Lutron Caséta Pico, or its own event entities. The original remote isn't changed.
 
-### Set up a remote from event entities
+### Another remote or button device
 
-Give the remote a name and pick the event entity for each button it has. Leave the rest empty. You can pick more than one entity for a button so several remotes share the same actions.
+For anything that isn't a Lutron Pico, such as Matter switches, hub buttons, Zigbee or ESPHome remotes:
 
-The button names follow a Pico, but any device fits: a two-button device uses **On** and **Off**, and a device with up to four buttons can use **Scene button 1–4**.
+1. Give the remote a name and say how many buttons it has (up to 12).
+2. Say whether it supports **double press** and **long press**. Gestures a remote doesn't support aren't offered on its buttons, aren't timed, and don't show up as device triggers. Without double press, short presses always fire instantly; without long press, holding a button counts as a short press.
+3. Pick the event entity for each of **Button 1**, **Button 2** and so on. You can pick more than one entity for a button so several remotes share the same actions.
+
+<p align="center">
+  <img src="docs/images/setup-form.png" alt="Setting up a remote: name, number of buttons, and whether it supports double and long press" width="480">
+</p>
+
+You can change the double and long press switches later under **Reconfigure**, and add more buttons with **Add button**.
 
 #### Event types
 
@@ -106,7 +114,7 @@ Each remote lists its buttons right under it on the Button Actions integration p
 | ⚙ next to a button | Set its short press, double press, long press and release-after-long-press actions, whether the long press repeats while held, whether to detect every gesture, and which event entities feed it. |
 | ⋮ next to a button | Delete that button. Its gesture entity is removed too. |
 | ⚙ on the remote | Click timing for the whole remote: double-press window, hold time and repeat interval. |
-| ⋮ on the remote → **Reconfigure** | Rename the remote, check or change what each event type means, or switch it to a Lutron Caséta Pico. |
+| ⋮ on the remote → **Reconfigure** | Rename the remote, turn double and long press support on or off, check or change what each event type means, or switch it to a Lutron Caséta Pico. |
 | ⋮ on the remote → **Download diagnostics** | Save the remote's config and live button state, to attach to a bug report. |
 | **Add button** at the top of the page | Add a button you skipped during setup to one of your remotes. |
 

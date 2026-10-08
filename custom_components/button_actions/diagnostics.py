@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 
 from .const import DOMAIN
-from .controller import settings_for_button
+from .controller import remote_capabilities, settings_for_button
 from .events import resolve_role
 from .issues import automation_issue_id, source_issue_id
 
@@ -63,7 +63,11 @@ async def async_get_config_entry_diagnostics(
                 },
             }
             for button in controller.buttons
-            if (settings := settings_for_button(entry.options, button))
+            if (
+                settings := settings_for_button(
+                    entry.options, button, *remote_capabilities(entry.data)
+                )
+            )
         ],
         "runtime": controller.diagnostics(),
         "issues": [

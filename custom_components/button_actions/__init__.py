@@ -13,13 +13,17 @@ from homeassistant.helpers import entity_registry as er
 from .const import (
     CONF_ACTIONS,
     CONF_ENTITIES,
+    CONF_LAYOUT,
     CONF_REPEAT,
     CONF_SLOT,
+    LAYOUT_PICO,
+    NUMBERED_SLOTS,
     SLOT_TITLES,
     SLOTS,
     SUBENTRY_BUTTON,
-    button_positions,
+    button_title,
     numbered_title,
+    slot_number,
 )
 from .controller import ButtonActionsController
 from .issues import async_delete_issues, async_track_issues
@@ -77,12 +81,16 @@ def _async_number_button_titles(hass: HomeAssistant, entry: ConfigEntry) -> None
         for sub in entry.subentries.values()
         if sub.subentry_type == SUBENTRY_BUTTON and sub.data.get(CONF_SLOT) in SLOTS
     }
-    positions = button_positions(list(buttons))
+    layout = entry.data.get(CONF_LAYOUT, LAYOUT_PICO)
+    slots = list(buttons)
     for slot, sub in buttons.items():
         ours = {SLOT_TITLES[slot]} | {
             numbered_title(n, slot) for n in range(1, len(SLOTS) + 1)
         }
-        wanted = numbered_title(positions[slot], slot)
+        if slot in NUMBERED_SLOTS:
+            n = slot_number(slot)
+            ours |= {f"Button {n}", f"Button {n:02d}"}
+        wanted = button_title(layout, slot, slots)
         if sub.title in ours and sub.title != wanted:
             hass.config_entries.async_update_subentry(entry, sub, title=wanted)
 
