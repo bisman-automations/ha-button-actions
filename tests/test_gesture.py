@@ -164,3 +164,23 @@ def test_stray_release_ignored() -> None:
     d.release()
     clock.advance(1)
     assert out == []
+
+
+def test_button_positions() -> None:
+    from custom_components.button_actions.const import button_positions
+
+    assert button_positions(["off", "lower", "on", "stop", "raise"]) == {
+        "on": 1,
+        "raise": 2,
+        "stop": 3,
+        "lower": 4,
+        "off": 5,
+    }
+    # Scene Pico: Off is the bottom button, after the scene buttons.
+    assert button_positions(["off", "button_3", "button_1", "button_2"]) == {
+        "button_1": 1,
+        "button_2": 2,
+        "button_3": 3,
+        "off": 4,
+    }
+    assert button_positions(["off", "on"]) == {"on": 1, "off": 2}

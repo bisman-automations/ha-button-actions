@@ -276,7 +276,7 @@
   "entity": {
     "event": {
       "on": {
-        "name": "On / top",
+        "name": "{position} · On",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -289,7 +289,7 @@
         }
       },
       "raise": {
-        "name": "Raise / up",
+        "name": "{position} · Raise",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -302,7 +302,7 @@
         }
       },
       "stop": {
-        "name": "Middle",
+        "name": "{position} · Middle",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -315,7 +315,7 @@
         }
       },
       "lower": {
-        "name": "Lower / down",
+        "name": "{position} · Lower",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -328,7 +328,7 @@
         }
       },
       "off": {
-        "name": "Off / bottom",
+        "name": "{position} · Off",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -341,7 +341,7 @@
         }
       },
       "button_1": {
-        "name": "Scene button 1",
+        "name": "{position} · Scene 1",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -354,7 +354,7 @@
         }
       },
       "button_2": {
-        "name": "Scene button 2",
+        "name": "{position} · Scene 2",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -367,7 +367,7 @@
         }
       },
       "button_3": {
-        "name": "Scene button 3",
+        "name": "{position} · Scene 3",
         "state_attributes": {
           "event_type": {
             "state": {
@@ -380,7 +380,7 @@
         }
       },
       "button_4": {
-        "name": "Scene button 4",
+        "name": "{position} · Scene 4",
         "state_attributes": {
           "event_type": {
             "state": {

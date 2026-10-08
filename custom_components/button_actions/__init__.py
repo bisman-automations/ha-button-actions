@@ -18,6 +18,8 @@ from .const import (
     SLOT_TITLES,
     SLOTS,
     SUBENTRY_BUTTON,
+    button_positions,
+    numbered_title,
 )
 from .controller import ButtonActionsController
 from .issues import async_delete_issues, async_track_issues
@@ -39,6 +41,8 @@ async def async_setup_entry(
     controller = ButtonActionsController(hass, entry)
     entry.runtime_data = controller
     _async_remove_stale_entities(hass, entry, controller.slots)
+    # Before the update listener is added, so retitling doesn't trigger a reload.
+    _async_number_button_titles(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await controller.async_start()
     async_track_issues(hass, entry, controller)
@@ -60,6 +64,27 @@ async def _async_update_listener(
 ) -> None:
     """Reload when timing changes or a button is added, edited or removed."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+@callback
+def _async_number_button_titles(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Title buttons "1 · On button", "2 · Raise button"... in remote order.
+
+    Only titles we set ourselves are changed, so a renamed button keeps its name.
+    """
+    buttons = {
+        sub.data.get(CONF_SLOT): sub
+        for sub in entry.subentries.values()
+        if sub.subentry_type == SUBENTRY_BUTTON and sub.data.get(CONF_SLOT) in SLOTS
+    }
+    positions = button_positions(list(buttons))
+    for slot, sub in buttons.items():
+        ours = {SLOT_TITLES[slot]} | {
+            numbered_title(n, slot) for n in range(1, len(SLOTS) + 1)
+        }
+        wanted = numbered_title(positions[slot], slot)
+        if sub.title in ours and sub.title != wanted:
+            hass.config_entries.async_update_subentry(entry, sub, title=wanted)
 
 
 @callback

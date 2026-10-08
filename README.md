@@ -87,7 +87,7 @@ The press and release event types default to `press` and `release`, which is wha
 
 ## Configuring buttons
 
-Each remote lists its buttons right under it on the Button Actions integration page, as in the screenshot at the top.
+Each remote lists its buttons right under it on the Button Actions integration page, as in the screenshot at the top. Buttons and their gesture entities are numbered top to bottom ("1 · On", "2 · Raise"…), because Home Assistant sorts these lists alphabetically and the numbers keep them in the order they sit on the remote.
 
 | Control | What it does |
 | --- | --- |

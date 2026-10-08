@@ -26,6 +26,7 @@ from custom_components.button_actions.const import (
     CONF_REPEAT_MS,
     CONF_SLOT,
     DOMAIN,
+    SLOT_TITLES,
     SUBENTRY_BUTTON,
 )
 
@@ -175,7 +176,7 @@ async def test_restore_and_unavailable_are_not_presses(hass: HomeAssistant) -> N
 async def test_gesture_event_entity(hass: HomeAssistant) -> None:
     async_mock_service(hass, "light", "turn_on")
     await _setup(hass, {"on": {"short_press": _light_on({})}})
-    gesture_entity = "event.kitchen_remote_on_top"
+    gesture_entity = "event.kitchen_remote_1_on"
     assert hass.states.get(gesture_entity) is not None
 
     _fire(hass, ON, "press")
@@ -198,13 +199,13 @@ async def test_unload(hass: HomeAssistant) -> None:
 async def test_removing_button_removes_its_entity(hass: HomeAssistant) -> None:
     calls = async_mock_service(hass, "light", "turn_on")
     entry = await _setup(hass, {"raise": {"short_press": _light_on({})}})
-    assert hass.states.get("event.kitchen_remote_raise_up") is not None
+    assert hass.states.get("event.kitchen_remote_2_raise") is not None
 
     raise_sub = next(s for s in entry.subentries.values() if s.unique_id == "raise")
     hass.config_entries.async_remove_subentry(entry, raise_sub.subentry_id)
     await hass.async_block_till_done(wait_background_tasks=True)
 
-    assert er.async_get(hass).async_get("event.kitchen_remote_raise_up") is None
+    assert er.async_get(hass).async_get("event.kitchen_remote_2_raise") is None
     _fire(hass, RAISE, "press")
     _fire(hass, RAISE, "release")
     await _advance(hass, 1)
@@ -252,7 +253,7 @@ async def test_migrate_from_1_0(hass: HomeAssistant) -> None:
     assert set(entry.options) == {CONF_HOLD_MS, CONF_DOUBLE_MS, CONF_REPEAT_MS}
     subs = {s.unique_id: s for s in entry.subentries.values()}
     assert set(subs) == {"on", "raise"}
-    assert subs["raise"].title == "Raise button"
+    assert subs["raise"].title == "2 · Raise button"
     assert subs["raise"].data[CONF_REPEAT] is True
     assert subs["raise"].data[CONF_ACTIONS] == {"long_press": _light_on({"x": 1})}
     assert subs["on"].data[CONF_ACTIONS] == {}
@@ -286,3 +287,41 @@ async def test_first_press_on_never_used_button(hass: HomeAssistant) -> None:
     _fire(hass, "event.fresh_on", "release")
     await hass.async_block_till_done(wait_background_tasks=True)
     assert len(calls) == 1
+
+
+async def test_buttons_numbered_in_remote_order(hass: HomeAssistant) -> None:
+    """Names sort alphabetically in HA, so they're numbered in remote order."""
+    async_mock_service(hass, "light", "turn_on")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Scene Remote",
+        minor_version=2,
+        data={CONF_PRESS_EVENT: "press", CONF_RELEASE_EVENT: "release"},
+        options={CONF_HOLD_MS: 600, CONF_DOUBLE_MS: 300, CONF_REPEAT_MS: 200},
+        subentries_data=[
+            {**_button(slot, [f"event.s_{slot}"], {}), "title": SLOT_TITLES[slot]}
+            for slot in ("off", "button_2", "button_1")
+        ],
+    )
+    entry.add_to_hass(hass)
+    # A button the user renamed keeps its name.
+    renamed = next(s for s in entry.subentries.values() if s.unique_id == "button_2")
+    hass.config_entries.async_update_subentry(entry, renamed, title="Movie scene")
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    titles = {s.unique_id: s.title for s in entry.subentries.values()}
+    assert titles == {
+        "button_1": "1 · Scene button 1",
+        "button_2": "Movie scene",
+        "off": "3 · Off button",
+    }
+    names = sorted(
+        hass.states.get(e.entity_id).name
+        for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+    )
+    assert names == [
+        "Scene Remote 1 · Scene 1",
+        "Scene Remote 2 · Scene 2",
+        "Scene Remote 3 · Off",
+    ]
