@@ -9,6 +9,7 @@ from homeassistant.helpers import issue_registry as ir
 
 from .const import DOMAIN
 from .controller import settings_for_button
+from .events import resolve_role
 from .issues import automation_issue_id, source_issue_id
 
 if TYPE_CHECKING:
@@ -45,6 +46,15 @@ async def async_get_config_entry_diagnostics(
                         {
                             "state": state.state,
                             "event_type": state.attributes.get("event_type"),
+                            "event_roles": {
+                                event_type: resolve_role(
+                                    event_type,
+                                    state.attributes.get("event_types"),
+                                    controller.event_roles,
+                                )
+                                for event_type in state.attributes.get("event_types")
+                                or []
+                            },
                         }
                         if (state := hass.states.get(entity_id))
                         else None

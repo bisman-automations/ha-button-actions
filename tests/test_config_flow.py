@@ -165,8 +165,6 @@ async def test_manual_and_duplicate(hass: HomeAssistant) -> None:
             "name": "Office Remote",
             "on": ["event.office_on"],
             "off": ["event.office_off"],
-            "press_event_type": "press",
-            "release_event_type": "release",
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -187,8 +185,6 @@ async def test_manual_and_duplicate(hass: HomeAssistant) -> None:
         {
             "name": "Again",
             "on": ["event.office_on"],
-            "press_event_type": "press",
-            "release_event_type": "release",
         },
     )
     assert result["errors"] == {"base": "already_configured"}

@@ -32,6 +32,7 @@ from .const import (
     CONF_DETECT_ALL,
     CONF_DOUBLE_MS,
     CONF_ENTITIES,
+    CONF_EVENT_ROLES,
     CONF_HOLD_MS,
     CONF_PRESS_EVENT,
     CONF_RELEASE_EVENT,
@@ -50,6 +51,7 @@ from .const import (
     GESTURE_HOLD_REPEAT,
     GESTURE_LONG,
     GESTURE_LONG_RELEASE,
+    GESTURE_SHORT,
     GESTURES,
     LUTRON_ACTION_PRESS,
     LUTRON_ACTION_RELEASE,
@@ -58,6 +60,15 @@ from .const import (
     SOURCE_EVENT_ENTITY,
     SOURCE_LUTRON,
     SUBENTRY_BUTTON,
+)
+from .events import (
+    ROLE_CLICK,
+    ROLE_DOUBLE,
+    ROLE_HOLD,
+    ROLE_PRESS,
+    ROLE_RELEASE,
+    ROLE_SINGLE,
+    resolve_role,
 )
 from .gesture import GestureDetector, GestureSettings
 
@@ -96,6 +107,32 @@ def buttons_from_entry(entry: ConfigEntry) -> list[ButtonConfig]:
     return sorted(buttons, key=lambda b: SLOTS.index(b.slot))
 
 
+def event_role_overrides(data: Mapping[str, Any]) -> dict[str, str]:
+    """The user's event-type roles, including the pre-1.5 press/release names."""
+    overrides: dict[str, str] = {}
+    if CONF_EVENT_ROLES not in data:
+        # Before 1.5.0 a remote named one press and one release event type.
+        overrides[data.get(CONF_PRESS_EVENT, DEFAULT_PRESS_EVENT)] = ROLE_PRESS
+        overrides[data.get(CONF_RELEASE_EVENT, DEFAULT_RELEASE_EVENT)] = ROLE_RELEASE
+    overrides.update(data.get(CONF_EVENT_ROLES) or {})
+    return overrides
+
+
+def _dispatch(detector: GestureDetector, role: str) -> None:
+    if role == ROLE_PRESS:
+        detector.press()
+    elif role == ROLE_RELEASE:
+        detector.release()
+    elif role == ROLE_CLICK:
+        detector.click()
+    elif role == ROLE_SINGLE:
+        detector.detected(GESTURE_SHORT)
+    elif role == ROLE_DOUBLE:
+        detector.detected(GESTURE_DOUBLE)
+    elif role == ROLE_HOLD:
+        detector.hold()
+
+
 def settings_for_button(
     options: dict[str, Any], button: ButtonConfig
 ) -> GestureSettings:
@@ -129,8 +166,7 @@ class ButtonActionsController:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
         self.entry = entry
-        self._press = entry.data.get(CONF_PRESS_EVENT, DEFAULT_PRESS_EVENT)
-        self._release = entry.data.get(CONF_RELEASE_EVENT, DEFAULT_RELEASE_EVENT)
+        self.event_roles = event_role_overrides(entry.data)
         self.source = entry.data.get(CONF_SOURCE, SOURCE_EVENT_ENTITY)
         self._device_id: str | None = entry.data.get(CONF_DEVICE_ID)
         self.buttons = buttons_from_entry(entry)
@@ -212,6 +248,7 @@ class ButtonActionsController:
         """Live state for download diagnostics."""
         return {
             "source": self.source,
+            "event_role_overrides": self.event_roles,
             "listening": self._unsub is not None,
             "detectors": {
                 key: {"button": slot, "state": detector.state}
@@ -302,10 +339,12 @@ class ButtonActionsController:
             return
 
         event_type = new_state.attributes.get("event_type")
-        if event_type == self._press:
-            detector.press()
-        elif event_type == self._release:
-            detector.release()
+        if event_type is None:
+            return
+        role = resolve_role(
+            event_type, new_state.attributes.get("event_types"), self.event_roles
+        )
+        _dispatch(detector, role)
 
     @callback
     def _fire_gesture_event(self, slot: str, gesture: str) -> None:

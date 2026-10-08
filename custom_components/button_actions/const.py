@@ -13,6 +13,9 @@ CONF_BUTTONS: Final = "buttons"
 CONF_PRESS_EVENT: Final = "press_event_type"
 CONF_RELEASE_EVENT: Final = "release_event_type"
 
+# {source event type: role}; the user's corrections to the automatic roles.
+CONF_EVENT_ROLES: Final = "event_roles"
+
 DEFAULT_PRESS_EVENT: Final = "press"
 DEFAULT_RELEASE_EVENT: Final = "release"
 

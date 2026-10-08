@@ -35,6 +35,7 @@ from .const import (
     CONF_DETECT_ALL,
     CONF_DOUBLE_MS,
     CONF_ENTITIES,
+    CONF_EVENT_ROLES,
     CONF_HOLD_MS,
     CONF_PICO_BUTTONS,
     CONF_PRESS_EVENT,
@@ -58,7 +59,8 @@ from .const import (
     SOURCE_LUTRON,
     SUBENTRY_BUTTON,
 )
-from .controller import async_validate_sequence
+from .controller import async_validate_sequence, event_role_overrides
+from .events import ROLE_PRESS, ROLE_RELEASE, ROLES, resolve_role
 from .lutron import async_pico_buttons, lutron_device_for_entities
 
 _LOGGER = logging.getLogger(__name__)
@@ -351,8 +353,10 @@ class PreparedImport:
             "title": self.title,
             "data": {
                 CONF_SOURCE: SOURCE_EVENT_ENTITY,
-                CONF_PRESS_EVENT: DEFAULT_PRESS_EVENT,
-                CONF_RELEASE_EVENT: DEFAULT_RELEASE_EVENT,
+                CONF_EVENT_ROLES: {
+                    DEFAULT_PRESS_EVENT: ROLE_PRESS,
+                    DEFAULT_RELEASE_EVENT: ROLE_RELEASE,
+                },
                 CONF_SOURCE_AUTOMATION: self.automation,
             },
             "options": self.options,
@@ -449,8 +453,7 @@ class RemoteCopy:
 
     title: str
     options: dict[str, Any]
-    press_event: str
-    release_event: str
+    event_roles: dict[str, str]
     # One dict per button: slot, actions, repeat, detect_all.
     buttons: list[dict[str, Any]]
 
@@ -491,8 +494,7 @@ def copy_remote(
     return RemoteCopy(
         title=title,
         options=dict(entry.options),
-        press_event=entry.data.get(CONF_PRESS_EVENT, DEFAULT_PRESS_EVENT),
-        release_event=entry.data.get(CONF_RELEASE_EVENT, DEFAULT_RELEASE_EVENT),
+        event_roles=event_role_overrides(entry.data),
         buttons=buttons,
     )
 
@@ -513,6 +515,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         self._pending: PreparedImport | None = None
         self._disable_source = True
         self._copy: RemoteCopy | None = None
+        self._reconfigure_title: str | None = None
 
     @staticmethod
     @callback
@@ -641,15 +644,8 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             elif lutron:
                 return self.async_update_reload_and_abort(entry, title=title)
             else:
-                return self.async_update_reload_and_abort(
-                    entry,
-                    title=title,
-                    data_updates={
-                        CONF_SOURCE: SOURCE_EVENT_ENTITY,
-                        CONF_PRESS_EVENT: user_input[CONF_PRESS_EVENT],
-                        CONF_RELEASE_EVENT: user_input[CONF_RELEASE_EVENT],
-                    },
-                )
+                self._reconfigure_title = title
+                return await self.async_step_reconfigure_events()
 
         fields: dict[vol.Marker, Any] = {
             vol.Required(CONF_NAME): selector.TextSelector()
@@ -661,21 +657,13 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_DEVICE_ID: entry.data.get(CONF_DEVICE_ID),
             }
         else:
-            fields[vol.Required(CONF_PRESS_EVENT)] = selector.TextSelector()
-            fields[vol.Required(CONF_RELEASE_EVENT)] = selector.TextSelector()
             fields[vol.Optional(CONF_DEVICE_ID)] = _PICO_DEVICE
             all_entities = [
                 entity
                 for sub in entry.subentries.values()
                 for entity in sub.data.get(CONF_ENTITIES, [])
             ]
-            suggested = {
-                CONF_NAME: entry.title,
-                CONF_PRESS_EVENT: entry.data.get(CONF_PRESS_EVENT, DEFAULT_PRESS_EVENT),
-                CONF_RELEASE_EVENT: entry.data.get(
-                    CONF_RELEASE_EVENT, DEFAULT_RELEASE_EVENT
-                ),
-            }
+            suggested = {CONF_NAME: entry.title}
             if pico := lutron_device_for_entities(self.hass, all_entities):
                 suggested[CONF_DEVICE_ID] = pico
 
@@ -686,6 +674,58 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
             description_placeholders=placeholders,
+        )
+
+    async def async_step_reconfigure_events(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show what each event type from the buttons means, and let it change."""
+        entry = self._get_reconfigure_entry()
+        title = self._reconfigure_title or entry.title
+        overrides = event_role_overrides(entry.data)
+
+        # Every event type the remote's entities can send, in the order they
+        # report them, plus any the user mapped before.
+        reported: list[str] = []
+        for sub in entry.subentries.values():
+            for entity_id in sub.data.get(CONF_ENTITIES, []):
+                if state := self.hass.states.get(entity_id):
+                    reported += list(state.attributes.get("event_types") or [])
+        event_types = list(dict.fromkeys([*reported, *overrides]))
+
+        if user_input is not None or not event_types:
+            data = {
+                key: value
+                for key, value in entry.data.items()
+                if key not in (CONF_PRESS_EVENT, CONF_RELEASE_EVENT)
+            }
+            data[CONF_SOURCE] = SOURCE_EVENT_ENTITY
+            data[CONF_EVENT_ROLES] = (
+                {t: user_input[t] for t in event_types if t in user_input}
+                if user_input is not None
+                else overrides
+            )
+            return self.async_update_reload_and_abort(entry, title=title, data=data)
+
+        role_selector = selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=list(ROLES),
+                translation_key="event_role",
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        )
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    event_type, default=resolve_role(event_type, reported, overrides)
+                ): role_selector
+                for event_type in event_types
+            }
+        )
+        return self.async_show_form(
+            step_id="reconfigure_events",
+            data_schema=schema,
+            description_placeholders={"remote": title},
         )
 
     async def async_step_reconfigure_lutron(
@@ -945,8 +985,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                     title=copied.title,
                     data={
                         CONF_SOURCE: SOURCE_EVENT_ENTITY,
-                        CONF_PRESS_EVENT: copied.press_event,
-                        CONF_RELEASE_EVENT: copied.release_event,
+                        CONF_EVENT_ROLES: copied.event_roles,
                     },
                     options=copied.options,
                     subentries=subentries,
@@ -976,11 +1015,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             if not errors:
                 return self.async_create_entry(
                     title=user_input[CONF_NAME],
-                    data={
-                        CONF_SOURCE: SOURCE_EVENT_ENTITY,
-                        CONF_PRESS_EVENT: user_input[CONF_PRESS_EVENT],
-                        CONF_RELEASE_EVENT: user_input[CONF_RELEASE_EVENT],
-                    },
+                    data={CONF_SOURCE: SOURCE_EVENT_ENTITY, CONF_EVENT_ROLES: {}},
                     options={
                         CONF_HOLD_MS: DEFAULT_HOLD_MS,
                         CONF_DOUBLE_MS: DEFAULT_DOUBLE_MS,
@@ -993,12 +1028,6 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_NAME): selector.TextSelector(),
                 **{vol.Optional(slot): _EVENT_ENTITIES for slot in SLOTS},
-                vol.Required(
-                    CONF_PRESS_EVENT, default=DEFAULT_PRESS_EVENT
-                ): selector.TextSelector(),
-                vol.Required(
-                    CONF_RELEASE_EVENT, default=DEFAULT_RELEASE_EVENT
-                ): selector.TextSelector(),
             }
         )
         return self.async_show_form(

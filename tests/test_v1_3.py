@@ -11,7 +11,7 @@ import pytest
 import yaml
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigSubentryData
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -163,7 +163,9 @@ async def test_device_trigger_fires_automation(hass: HomeAssistant) -> None:
 async def test_detect_all_reports_double_without_action(hass: HomeAssistant) -> None:
     """With detect_all, a double press is seen even with no double action."""
     events = []
-    hass.bus.async_listen("button_actions_gesture", events.append)
+    hass.bus.async_listen(
+        "button_actions_gesture", callback(lambda event: events.append(event))
+    )
     await _event_remote(
         hass,
         [

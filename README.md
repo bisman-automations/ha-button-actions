@@ -32,7 +32,7 @@ Button Actions runs a small state machine per button inside Home Assistant, so e
 - **Repairs:** you're told if an imported blueprint automation gets turned back on (presses would run twice), or if a button's event entity or Pico disappears.
 - **Gesture event entities:** each button also gets an event entity that reports `short_press`, `double_press`, `long_press` and `long_release`, so presses show up in the logbook and history.
 - **Lutron Caséta Picos built in:** pick a Pico from the core Lutron Caséta integration and its buttons are set up for you. No extra integration needed.
-- **Works with any press/release event entity** too, so Zigbee, ESPHome and other remotes work as well.
+- **Works with other button devices too:** Matter switches and hub buttons, Zigbee, ESPHome and more. Each event type a device sends is recognized automatically, whether it reports presses and releases or detects single, double and held presses itself.
 - **Duplicate a remote:** copy every button's actions to a new remote, with find-and-replace to retarget areas and entities in one step.
 - **Download diagnostics:** a remote's config and each button's live state in one file, for bug reports.
 
@@ -41,7 +41,7 @@ Button Actions runs a small state machine per button inside Home Assistant, so e
 - Home Assistant 2025.4 or newer. The integration icon shows in the UI on 2026.3 and newer.
 - One of:
   - A Pico paired with the core **Lutron Caséta** integration, or
-  - Event entities that report a press and a release for each button, such as those from [lutron-caseta-events](https://github.com/jharris4/lutron-caseta-events), Zigbee or ESPHome.
+  - Event entities for each button, such as those from [lutron-caseta-events](https://github.com/jharris4/lutron-caseta-events), Matter, Zigbee or ESPHome.
 
 ## Installation
 
@@ -83,7 +83,19 @@ Use **Find** and **Replace with** to change text in every copied action at once.
 
 Give the remote a name and pick the event entity for each button it has. Leave the rest empty. You can pick more than one entity for a button so several remotes share the same actions.
 
-The press and release event types default to `press` and `release`, which is what Lutron uses. Change them if your remote reports something else.
+The button names follow a Pico, but any device fits: a two-button device uses **On** and **Off**, and a device with up to four buttons can use **Scene button 1–4**.
+
+#### Event types
+
+Button devices report presses differently, and Button Actions recognizes the common ways automatically:
+
+| Device sends | For example | What happens |
+| --- | --- | --- |
+| A press and a release | Lutron (`press`, `release`), Matter (`initial_press`, `short_release`, `long_release`) | Button Actions times short, double and long presses itself. |
+| A press only | Matter switches without release support (`initial_press`) | Each press counts as a full press. Double presses work; long presses can't be detected. |
+| Gestures it detects itself | Matter multi-press (`multi_press_1`, `multi_press_2`, `long_press`), Zigbee (`single`, `double`, `hold`) | Those gestures are used as they are. Hold-to-repeat still works. |
+
+If a device uses names that aren't recognized, open **Reconfigure** on the remote. It lists every event type the buttons send and what each one means, and you can change any of them.
 
 ## Configuring buttons
 
@@ -94,7 +106,7 @@ Each remote lists its buttons right under it on the Button Actions integration p
 | ⚙ next to a button | Set its short press, double press, long press and release-after-long-press actions, whether the long press repeats while held, whether to detect every gesture, and which event entities feed it. |
 | ⋮ next to a button | Delete that button. Its gesture entity is removed too. |
 | ⚙ on the remote | Click timing for the whole remote: double-press window, hold time and repeat interval. |
-| ⋮ on the remote → **Reconfigure** | Rename the remote, change its press and release event types, or switch it to a Lutron Caséta Pico. |
+| ⋮ on the remote → **Reconfigure** | Rename the remote, check or change what each event type means, or switch it to a Lutron Caséta Pico. |
 | ⋮ on the remote → **Download diagnostics** | Save the remote's config and live button state, to attach to a bug report. |
 | **Add button** at the top of the page | Add a button you skipped during setup to one of your remotes. |
 
