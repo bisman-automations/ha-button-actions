@@ -109,6 +109,26 @@ class GestureDetector:
             self._state = _State.IDLE
         # Stray release in IDLE or WAIT_SECOND: ignore.
 
+    def click(self) -> None:
+        """Handle a device that reports a whole press in one event."""
+        self.press()
+        self.release()
+
+    def detected(self, gesture: str) -> None:
+        """Handle a short or double press the device detected itself."""
+        self._cancel_timer()
+        self._state = _State.IDLE
+        self._emit(gesture)
+
+    def hold(self) -> None:
+        """Handle a hold the device detected itself; a release ends it."""
+        self._cancel_timer()
+        self._state = _State.HELD
+        self._emit(GESTURE_LONG)
+        if self._settings.repeat:
+            self._repeats = 0
+            self._set_timer(self._settings.repeat_ms, self._on_repeat)
+
     def reset(self) -> None:
         """Drop any in-progress gesture (source went unavailable, unload)."""
         self._cancel_timer()

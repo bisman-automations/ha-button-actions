@@ -184,3 +184,22 @@ def test_button_positions() -> None:
         "off": 4,
     }
     assert button_positions(["off", "on"]) == {"on": 1, "off": 2}
+
+
+def test_device_detected_hold_and_click() -> None:
+    d, clock, out = make(repeat=True)
+    d.hold()
+    clock.advance(0.45)
+    d.release()
+    assert out == [
+        GESTURE_LONG,
+        GESTURE_HOLD_REPEAT,
+        GESTURE_HOLD_REPEAT,
+        GESTURE_LONG_RELEASE,
+    ]
+
+    out.clear()
+    d.click()
+    d.click()
+    clock.advance(1)
+    assert out == [GESTURE_DOUBLE]

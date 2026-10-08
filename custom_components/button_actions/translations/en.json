@@ -25,7 +25,7 @@
       },
       "manual": {
         "title": "Set up a new remote",
-        "description": "Pick the event entities for each button. Afterwards, use the edit button next to each button to choose what it does.",
+        "description": "Pick the event entities for each button the remote has, and leave the rest empty. Button Actions works out what each event type means (press, release, single, double, hold) from the device. If a device needs something different, change it later under Reconfigure.",
         "data": {
           "name": "Name",
           "on": "On / top button",
@@ -36,9 +36,7 @@
           "button_1": "Scene button 1",
           "button_2": "Scene button 2",
           "button_3": "Scene button 3",
-          "button_4": "Scene button 4",
-          "press_event_type": "Press event type",
-          "release_event_type": "Release event type"
+          "button_4": "Scene button 4"
         },
         "data_description": {
           "on": "Event entities for this button. Leave empty if the remote doesn't have it.",
@@ -49,9 +47,7 @@
           "button_1": "Event entities for this button. Leave empty if the remote doesn't have it.",
           "button_2": "Event entities for this button. Leave empty if the remote doesn't have it.",
           "button_3": "Event entities for this button. Leave empty if the remote doesn't have it.",
-          "button_4": "Event entities for this button. Leave empty if the remote doesn't have it.",
-          "press_event_type": "The event_type the source entity reports when a button goes down. Lutron uses press.",
-          "release_event_type": "The event_type the source entity reports when a button comes up. Lutron uses release."
+          "button_4": "Event entities for this button. Leave empty if the remote doesn't have it."
         }
       },
       "lutron": {
@@ -67,17 +63,13 @@
       },
       "reconfigure": {
         "title": "Reconfigure remote",
-        "description": "Rename this remote or change the event types its buttons report. To read presses straight from the Lutron Caséta integration instead, pick the Pico below; every button keeps its actions.",
+        "description": "Rename this remote. To read presses straight from the Lutron Caséta integration instead, pick the Pico below; every button keeps its actions. Otherwise you'll check how its event types are used next.",
         "data": {
           "name": "Name",
-          "press_event_type": "Press event type",
-          "release_event_type": "Release event type",
           "device_id": "Switch to Lutron Caséta Pico"
         },
         "data_description": {
-          "device_id": "Optional. Once switched, this remote no longer uses its event entities, so other integrations that provide them are no longer needed for it.",
-          "press_event_type": "The event_type the source entity reports when a button goes down. Lutron uses press.",
-          "release_event_type": "The event_type the source entity reports when a button comes up. Lutron uses release."
+          "device_id": "Optional. Once switched, this remote no longer uses its event entities, so other integrations that provide them are no longer needed for it."
         }
       },
       "reconfigure_lutron": {
@@ -150,6 +142,10 @@
           "button_3": "Scene button 3",
           "button_4": "Scene button 4"
         }
+      },
+      "reconfigure_events": {
+        "title": "Event types",
+        "description": "These are the event types {remote}'s buttons send, and what each one means. They're filled in automatically; change one only if presses aren't detected correctly.\n\n- **Pressed down** and **Released**: Button Actions times short, double and long presses itself.\n- **Full press**: one event for a whole press and release.\n- **Short press**, **Double press**, **Held down**: the device detected the gesture itself."
       }
     },
     "error": {
@@ -270,6 +266,17 @@
         "button_2": "Scene button 2",
         "button_3": "Scene button 3",
         "button_4": "Scene button 4"
+      }
+    },
+    "event_role": {
+      "options": {
+        "press": "Pressed down",
+        "release": "Released",
+        "click": "Full press (pressed and released)",
+        "single": "Short press (detected by the device)",
+        "double": "Double press (detected by the device)",
+        "hold": "Held down (detected by the device)",
+        "ignore": "Ignore"
       }
     }
   },

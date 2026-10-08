@@ -324,21 +324,31 @@ def _event_remote(hass: HomeAssistant, pico: str | None = None) -> MockConfigEnt
 
 async def test_reconfigure_rename_and_event_types(hass: HomeAssistant) -> None:
     entry = _event_remote(hass)
+    hass.states.async_set(
+        "event.kitchen_remote_on", "unknown", {"event_types": ["down", "up"]}
+    )
     result = await _reconfigure(hass, entry)
     assert result["step_id"] == "reconfigure"
     result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": "Kitchen"}
+    )
+    # Every event type the buttons report, plus the old press/release names.
+    assert result["step_id"] == "reconfigure_events"
+    assert list(result["data_schema"].schema) == ["down", "up", "press", "release"]
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {
-            "name": "Kitchen",
-            "press_event_type": "down",
-            "release_event_type": "up",
-        },
+        {"down": "press", "up": "release", "press": "ignore", "release": "ignore"},
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.title == "Kitchen"
-    assert entry.data["press_event_type"] == "down"
-    assert entry.data["release_event_type"] == "up"
+    assert entry.data["event_roles"] == {
+        "down": "press",
+        "up": "release",
+        "press": "ignore",
+        "release": "ignore",
+    }
+    assert "press_event_type" not in entry.data
 
 
 async def test_switch_event_remote_to_pico(hass: HomeAssistant, pico: str) -> None:
@@ -355,8 +365,6 @@ async def test_switch_event_remote_to_pico(hass: HomeAssistant, pico: str) -> No
         result["flow_id"],
         {
             "name": "Kitchen Remote",
-            "press_event_type": "press",
-            "release_event_type": "release",
             "device_id": pico,
         },
     )
@@ -385,8 +393,6 @@ async def test_switch_blocked_when_pico_lacks_buttons(
         result["flow_id"],
         {
             "name": "Kitchen Remote",
-            "press_event_type": "press",
-            "release_event_type": "release",
             "device_id": pico,
         },
     )

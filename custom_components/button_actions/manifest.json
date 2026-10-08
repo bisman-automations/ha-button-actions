@@ -17,5 +17,5 @@
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/bisman-automations/ha-button-actions/issues",
   "requirements": [],
-  "version": "1.4.1"
+  "version": "1.5.0"
 }

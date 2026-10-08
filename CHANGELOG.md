@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-08
+
+### Added
+
+- Support for button devices beyond Lutron, such as Matter switches and hub buttons (for example a SwitchBot Hub 2), Zigbee and ESPHome. Every event type a device sends is recognized automatically:
+  - Press and release events (Lutron `press`/`release`, Matter `initial_press`/`short_release`/`long_release`): short, double and long presses are timed by Button Actions.
+  - Press-only devices (Matter `initial_press` without release): each press counts as a full press, and double presses work.
+  - Devices that detect gestures themselves (Matter `multi_press_1`/`multi_press_2`/`long_press`, Zigbee `single`/`double`/`hold`): their gestures are used as they are, including hold-to-repeat.
+- **Reconfigure** on an event-entity remote now lists every event type its buttons send, with what each one means, so you can correct a device that uses unusual names.
+- Diagnostics show the role of every event type for each button.
+
+### Changed
+
+- Setting up a remote from event entities no longer asks for press and release event names.
+- Existing remotes keep working as before; their press and release names carry over.
+
 ## [1.4.1] - 2026-10-07
 
 ### Changed
@@ -84,7 +100,8 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.2.0...v1.3.0
