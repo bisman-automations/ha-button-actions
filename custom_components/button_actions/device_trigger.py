@@ -15,7 +15,6 @@ from homeassistant.const import (
     CONF_TYPE,
 )
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.trigger import TriggerActionType, TriggerInfo
 from homeassistant.helpers.typing import ConfigType
 
@@ -23,30 +22,35 @@ from .const import DOMAIN, GESTURE_EVENT, GESTURES, SLOTS
 from .controller import buttons_from_entry, supported_gestures
 
 CONF_SUBTYPE = "subtype"
+CONF_ENTRY_ID = "entry_id"
 
 TRIGGER_SCHEMA = DEVICE_TRIGGER_BASE_SCHEMA.extend(
     {
         vol.Required(CONF_TYPE): vol.In(GESTURES),
         vol.Required(CONF_SUBTYPE): vol.In(SLOTS),
+        # Which remote, when several share one device.
+        vol.Optional(CONF_ENTRY_ID): str,
     }
 )
 
 
-def _entry_for_device(hass: HomeAssistant, device_id: str) -> ConfigEntry | None:
-    if (device := dr.async_get(hass).async_get(device_id)) is None:
-        return None
-    for domain, identifier in device.identifiers:
-        if domain == DOMAIN:
-            return hass.config_entries.async_get_entry(identifier)
-    return None
+def _entries_for_device(hass: HomeAssistant, device_id: str) -> list[ConfigEntry]:
+    """Remotes whose gesture entities live on this device.
+
+    That's a remote's own device, or the Pico or button device it joined.
+    More than one remote can share a device.
+    """
+    return [
+        entry
+        for entry in hass.config_entries.async_loaded_entries(DOMAIN)
+        if entry.runtime_data.device_id() == device_id
+    ]
 
 
 async def async_get_triggers(
     hass: HomeAssistant, device_id: str
 ) -> list[dict[str, Any]]:
-    """Every gesture on every button the remote has."""
-    if (entry := _entry_for_device(hass, device_id)) is None:
-        return []
+    """Every supported gesture on every button of the remotes on this device."""
     return [
         {
             CONF_PLATFORM: "device",
@@ -54,7 +58,9 @@ async def async_get_triggers(
             CONF_DEVICE_ID: device_id,
             CONF_TYPE: gesture,
             CONF_SUBTYPE: button.slot,
+            CONF_ENTRY_ID: entry.entry_id,
         }
+        for entry in _entries_for_device(hass, device_id)
         for button in buttons_from_entry(entry)
         for gesture in supported_gestures(entry.data)
     ]
@@ -77,6 +83,11 @@ async def async_attach_trigger(
                     CONF_DEVICE_ID: config[CONF_DEVICE_ID],
                     "button": config[CONF_SUBTYPE],
                     "gesture": config[CONF_TYPE],
+                    **(
+                        {CONF_ENTRY_ID: config[CONF_ENTRY_ID]}
+                        if CONF_ENTRY_ID in config
+                        else {}
+                    ),
                 },
             }
         ),

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -48,6 +49,7 @@ from .const import (
     CONF_SLOT,
     CONF_SOURCE,
     CONF_SOURCE_AUTOMATION,
+    CONF_SOURCE_DEVICE,
     CONF_SUPPORTS_DOUBLE,
     CONF_SUPPORTS_LONG,
     DEFAULT_DOUBLE_MS,
@@ -76,8 +78,15 @@ from .controller import (
     remote_capabilities,
     supported_gestures,
 )
-from .events import ROLE_PRESS, ROLE_RELEASE, ROLES, resolve_role
-from .lutron import async_pico_buttons, lutron_device_for_entities
+from .events import (
+    ROLE_HOLD,
+    ROLE_PRESS,
+    ROLE_RELEASE,
+    ROLES,
+    resolve_role,
+    suggest_roles,
+)
+from .lutron import async_pico_buttons, is_lutron_device, lutron_device_for_entities
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -126,6 +135,52 @@ def _pico_conflict(
             if lutron_device_for_entities(hass, entities) == device_id:
                 return "pico_in_use"
     return None
+
+
+def device_button_entities(
+    hass: HomeAssistant, device_id: str
+) -> list[tuple[str, str, list[str]]]:
+    """A device's button event entities as (entity_id, name, event_types).
+
+    Button Actions' own gesture entities are left out, so a device a remote
+    has joined isn't mistaken for having extra buttons.
+    """
+    registry = er.async_get(hass)
+    found = []
+    for reg in er.async_entries_for_device(registry, device_id):
+        if reg.domain != "event" or reg.platform == DOMAIN:
+            continue
+        state = hass.states.get(reg.entity_id)
+        event_types = list(
+            (reg.capabilities or {}).get("event_types")
+            or (state.attributes.get("event_types") if state else None)
+            or []
+        )
+        name = (
+            reg.name
+            or reg.original_name
+            or (state.name if state else None)
+            or reg.entity_id
+        )
+        found.append((reg.entity_id, str(name), event_types))
+    # Natural order, so button_2 comes before button_10.
+    return sorted(
+        found,
+        key=lambda item: [
+            int(part) if part.isdigit() else part
+            for part in re.split(r"(\d+)", item[0])
+        ],
+    )
+
+
+def _supports_long_press(event_types: list[str]) -> bool:
+    """Whether a device's events can tell a hold from a press.
+
+    Yes if it reports holds itself, or reports presses and releases so
+    Button Actions can time them. Press-only devices can't.
+    """
+    roles = set(suggest_roles(event_types).values())
+    return ROLE_HOLD in roles or {ROLE_PRESS, ROLE_RELEASE} <= roles
 
 
 def _device_name(hass: HomeAssistant, device_id: str) -> str | None:
@@ -569,6 +624,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         self._reconfigure_title: str | None = None
         self._reconfigure_caps: dict[str, bool] = {}
         self._manual: dict[str, Any] | None = None
+        self._from_device: dict[str, Any] | None = None
 
     @staticmethod
     @callback
@@ -591,12 +647,135 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_menu(
             step_id="user",
             menu_options=[
-                "lutron",
+                "device",
                 "import_blueprint",
                 "import_all",
                 "duplicate",
                 "manual",
             ],
+        )
+
+    async def async_step_device(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick a device; its buttons are found automatically."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            device_id = user_input[CONF_DEVICE_ID]
+            title = (
+                user_input.get(CONF_NAME)
+                or _device_name(self.hass, device_id)
+                or "Remote"
+            )
+            if is_lutron_device(self.hass, device_id) and (
+                buttons := await async_pico_buttons(self.hass, device_id)
+            ):
+                # A Pico: named buttons, read straight from core Lutron.
+                if error := _pico_conflict(self.hass, device_id):
+                    errors[CONF_DEVICE_ID] = error
+                else:
+                    return self._async_create_pico_remote(title, device_id, buttons)
+            elif not (found := device_button_entities(self.hass, device_id)):
+                errors[CONF_DEVICE_ID] = "no_buttons_on_device"
+            elif len(found) > MAX_BUTTONS:
+                errors[CONF_DEVICE_ID] = "too_many_buttons"
+            else:
+                subentries = [
+                    _button_subentry(slot, [entity_id], {}, False)
+                    for slot, (entity_id, _name, _types) in zip(
+                        NUMBERED_SLOTS, found, strict=False
+                    )
+                ]
+                if not (errors := await self._async_check(subentries)):
+                    self._from_device = {
+                        "title": title,
+                        "device_id": device_id,
+                        "found": found,
+                        "subentries": subentries,
+                    }
+                    return await self.async_step_device_confirm()
+                errors = {CONF_DEVICE_ID: errors["base"]}
+
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_DEVICE_ID): selector.DeviceSelector(),
+                vol.Optional(CONF_NAME): selector.TextSelector(),
+            }
+        )
+        return self.async_show_form(
+            step_id="device",
+            data_schema=self.add_suggested_values_to_schema(schema, user_input),
+            errors=errors,
+        )
+
+    async def async_step_device_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the buttons found, and what the device can do."""
+        found_device = self._from_device
+        assert found_device is not None
+        if user_input is not None:
+            return self.async_create_entry(
+                title=found_device["title"],
+                data={
+                    CONF_SOURCE: SOURCE_EVENT_ENTITY,
+                    CONF_EVENT_ROLES: {},
+                    CONF_LAYOUT: LAYOUT_NUMBERED,
+                    CONF_SOURCE_DEVICE: found_device["device_id"],
+                    CONF_SUPPORTS_DOUBLE: user_input.get(CONF_SUPPORTS_DOUBLE, True),
+                    CONF_SUPPORTS_LONG: user_input.get(CONF_SUPPORTS_LONG, True),
+                },
+                options={
+                    CONF_HOLD_MS: DEFAULT_HOLD_MS,
+                    CONF_DOUBLE_MS: DEFAULT_DOUBLE_MS,
+                    CONF_REPEAT_MS: DEFAULT_REPEAT_MS,
+                },
+                subentries=found_device["subentries"],
+            )
+
+        found = found_device["found"]
+        all_types = [t for _entity, _name, types in found for t in types]
+        listing = "\n".join(
+            f"- Button {n}: {name} ({entity_id})"
+            for n, (entity_id, name, _types) in enumerate(found, start=1)
+        )
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_SUPPORTS_DOUBLE, default=True): (
+                    selector.BooleanSelector()
+                ),
+                vol.Optional(
+                    CONF_SUPPORTS_LONG, default=_supports_long_press(all_types)
+                ): selector.BooleanSelector(),
+            }
+        )
+        return self.async_show_form(
+            step_id="device_confirm",
+            data_schema=schema,
+            description_placeholders={
+                "remote": found_device["title"],
+                "count": str(len(found)),
+                "buttons": listing,
+            },
+        )
+
+    @callback
+    def _async_create_pico_remote(
+        self, title: str, device_id: str, buttons: list[str]
+    ) -> ConfigFlowResult:
+        return self.async_create_entry(
+            title=title,
+            data={
+                CONF_SOURCE: SOURCE_LUTRON,
+                CONF_DEVICE_ID: device_id,
+                CONF_PICO_BUTTONS: buttons,
+            },
+            options={
+                CONF_HOLD_MS: DEFAULT_HOLD_MS,
+                CONF_DOUBLE_MS: DEFAULT_DOUBLE_MS,
+                CONF_REPEAT_MS: DEFAULT_REPEAT_MS,
+            },
+            subentries=[_button_subentry(slot, [], {}, False) for slot in buttons],
         )
 
     async def async_step_lutron(

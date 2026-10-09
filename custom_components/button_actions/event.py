@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device import async_device_info_to_link_from_device_id
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -70,7 +71,13 @@ class ButtonGestureEvent(EventEntity):
         # Numbered so Home Assistant's alphabetical list matches the remote.
         self._attr_translation_placeholders = placeholders
         self._attr_icon = icon
-        self._attr_device_info = DeviceInfo(
+        # Join the Pico or button device this remote reads from, so its
+        # gestures and actions sit on that device's page. Otherwise the remote
+        # gets a device of its own.
+        controller = entry.runtime_data
+        self._attr_device_info = async_device_info_to_link_from_device_id(
+            controller.hass, controller.linked_device_id
+        ) or DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
             manufacturer="Button Actions",
