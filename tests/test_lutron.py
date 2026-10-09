@@ -126,9 +126,9 @@ async def _start_lutron_flow(hass: HomeAssistant):
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
-    assert "lutron" in result["menu_options"]
+    assert "device" in result["menu_options"]
     return await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"next_step_id": "lutron"}
+        result["flow_id"], {"next_step_id": "device"}
     )
 
 
@@ -157,7 +157,8 @@ async def test_setup_rejects_non_pico(
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"device_id": pico}
     )
-    assert result["errors"] == {"device_id": "not_a_pico"}
+    # Not a Pico, and no event entities either.
+    assert result["errors"] == {"device_id": "no_buttons_on_device"}
 
 
 async def test_setup_rejects_pico_used_by_entities(

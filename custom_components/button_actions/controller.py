@@ -20,6 +20,7 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.script import (
     SCRIPT_MODE_PARALLEL,
@@ -40,6 +41,7 @@ from .const import (
     CONF_REPEAT_MS,
     CONF_SLOT,
     CONF_SOURCE,
+    CONF_SOURCE_DEVICE,
     CONF_SUPPORTS_DOUBLE,
     CONF_SUPPORTS_LONG,
     DEFAULT_DOUBLE_MS,
@@ -135,6 +137,34 @@ def _dispatch(detector: GestureDetector, role: str) -> None:
         detector.hold()
 
 
+def linked_device_id(
+    hass: HomeAssistant, entry: ConfigEntry, buttons: list[ButtonConfig]
+) -> str | None:
+    """The existing device this remote belongs on, if there is one.
+
+    A Pico remote joins its Pico. An event-entity remote joins the device its
+    button entities belong to, when they all belong to the same one.
+    """
+    dev_reg = dr.async_get(hass)
+    if (chosen := entry.data.get(CONF_SOURCE_DEVICE)) and dev_reg.async_get(chosen):
+        # The device picked at setup.
+        return chosen
+    if entry.data.get(CONF_SOURCE) == SOURCE_LUTRON:
+        device_id = entry.data.get(CONF_DEVICE_ID)
+        return device_id if device_id and dev_reg.async_get(device_id) else None
+
+    ent_reg = er.async_get(hass)
+    devices = {
+        (reg.device_id if (reg := ent_reg.async_get(entity_id)) else None)
+        for button in buttons
+        for entity_id in button.entities
+    }
+    if len(devices) != 1 or None in devices:
+        return None
+    device_id = devices.pop()
+    return device_id if dev_reg.async_get(device_id) else None
+
+
 def remote_capabilities(data: Mapping[str, Any]) -> tuple[bool, bool]:
     """(supports double press, supports long press). Missing means yes."""
     return (
@@ -198,6 +228,7 @@ class ButtonActionsController:
         self.source = entry.data.get(CONF_SOURCE, SOURCE_EVENT_ENTITY)
         self._device_id: str | None = entry.data.get(CONF_DEVICE_ID)
         self.buttons = buttons_from_entry(entry)
+        self.linked_device_id = linked_device_id(hass, entry, self.buttons)
         # Event-entity remotes: entity_id -> (slot, detector)
         # Lutron remotes: slot -> (slot, detector)
         self._detectors: dict[str, tuple[str, GestureDetector]] = {}
@@ -278,6 +309,7 @@ class ButtonActionsController:
         """Live state for download diagnostics."""
         return {
             "source": self.source,
+            "linked_device_id": self.linked_device_id,
             "event_role_overrides": self.event_roles,
             "listening": self._unsub is not None,
             "detectors": {
@@ -377,15 +409,23 @@ class ButtonActionsController:
         _dispatch(detector, role)
 
     @callback
-    def _fire_gesture_event(self, slot: str, gesture: str) -> None:
-        """Back the device triggers ("On button double pressed")."""
+    def device_id(self) -> str | None:
+        """The device this remote's entities live on."""
+        if self.linked_device_id:
+            return self.linked_device_id
         device = dr.async_get(self.hass).async_get_device(
             identifiers={(DOMAIN, self.entry.entry_id)}
         )
+        return device.id if device else None
+
+    @callback
+    def _fire_gesture_event(self, slot: str, gesture: str) -> None:
+        """Back the device triggers ("On button double pressed")."""
         self.hass.bus.async_fire(
             GESTURE_EVENT,
             {
-                CONF_DEVICE_ID: device.id if device else None,
+                CONF_DEVICE_ID: self.device_id(),
+                "entry_id": self.entry.entry_id,
                 "remote": self.entry.title,
                 "button": slot,
                 "gesture": gesture,

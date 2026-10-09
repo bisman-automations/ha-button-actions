@@ -8,6 +8,7 @@ from types import MappingProxyType
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from .const import (
@@ -48,6 +49,7 @@ async def async_setup_entry(
     # Before the update listener is added, so retitling doesn't trigger a reload.
     _async_number_button_titles(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    _async_tidy_devices(hass, entry, controller.device_id())
     await controller.async_start()
     async_track_issues(hass, entry, controller)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -93,6 +95,25 @@ def _async_number_button_titles(hass: HomeAssistant, entry: ConfigEntry) -> None
         wanted = button_title(layout, slot, slots)
         if sub.title in ours and sub.title != wanted:
             hass.config_entries.async_update_subentry(entry, sub, title=wanted)
+
+
+@callback
+def _async_tidy_devices(
+    hass: HomeAssistant, entry: ConfigEntry, current_device_id: str | None
+) -> None:
+    """Detach the remote from devices it no longer lives on.
+
+    When a remote joins its Pico or button device, its old "Button remote"
+    device is removed; if it stops being linked, it leaves that device.
+    """
+    if current_device_id is None:
+        return
+    registry = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
+        if device.id != current_device_id:
+            registry.async_update_device(
+                device.id, remove_config_entry_id=entry.entry_id
+            )
 
 
 @callback

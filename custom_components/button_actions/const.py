@@ -156,6 +156,10 @@ CONF_DETECT_ALL: Final = "detect_all"
 # Fired for every gesture; backs the device triggers.
 GESTURE_EVENT: Final = "button_actions_gesture"
 
+# Entry data: the device a remote was set up from. Its gesture entities and
+# device triggers are shown on that device.
+CONF_SOURCE_DEVICE: Final = "source_device"
+
 # Entry data: the blueprint automation a remote was imported from.
 CONF_SOURCE_AUTOMATION: Final = "source_automation"
 

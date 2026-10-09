@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-09
+
+### Added
+
+- **Pick a device**: choose a Lutron Pico, a hub, a Matter switch or a Zigbee remote, and its buttons are found and set up for you. The number of buttons and whether long press works are filled in from what the device reports.
+- Remotes are linked to the device their buttons belong to. Their gesture entities and device triggers show up on that device's page, next to the device's own integration, instead of on a separate "Button remote" device.
+- Several remotes can share one device; each keeps its own device triggers.
+
+### Changed
+
+- Existing remotes move onto their Pico or button device automatically the first time Home Assistant starts with 1.7.0. Entity IDs and automations using their triggers keep working, and the old standalone device is removed. Remotes whose buttons come from more than one device keep a device of their own.
+- The setup menu's separate "Lutron Caséta Pico" option is now part of **Pick a device**. "Another remote or button device" is now **Set up a remote by hand**.
+
 ## [1.6.0] - 2026-10-08
 
 ### Added
@@ -115,7 +128,8 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.4.0...v1.4.1
