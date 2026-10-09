@@ -6,13 +6,11 @@ from typing import TYPE_CHECKING
 
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device import async_device_info_to_link_from_device_id
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
     CONF_LAYOUT,
-    DOMAIN,
     LAYOUT_NUMBERED,
     NUMBERED_ICON,
     SLOT_ICONS,
@@ -71,18 +69,14 @@ class ButtonGestureEvent(EventEntity):
         # Numbered so Home Assistant's alphabetical list matches the remote.
         self._attr_translation_placeholders = placeholders
         self._attr_icon = icon
-        # Join the Pico or button device this remote reads from, so its
-        # gestures and actions sit on that device's page. Otherwise the remote
-        # gets a device of its own.
+        # Show on the Pico or button device this remote reads from, so its
+        # gestures sit on that device's page; otherwise on the remote's own
+        # device. Attached by device_entry rather than device_info: since
+        # Home Assistant 2026.8 a device belongs to one integration, so another
+        # integration's device can't be claimed through device_info.
         controller = entry.runtime_data
-        self._attr_device_info = async_device_info_to_link_from_device_id(
-            controller.hass, controller.linked_device_id
-        ) or DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title,
-            manufacturer="Button Actions",
-            model="Button remote",
-        )
+        if device_id := controller.entity_device_id():
+            self.device_entry = dr.async_get(controller.hass).async_get(device_id)
 
     async def async_added_to_hass(self) -> None:
         """Start receiving gestures from the controller."""

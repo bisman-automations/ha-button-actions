@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-10-09
+
+### Fixed
+
+- Remotes weren't linked to their Pico or button device on Home Assistant 2026.8 and newer, where a device can only belong to one integration. Gesture entities are now shown on the linked device on every supported version.
+- **Reconfigure** on a remote that isn't a Pico only let you pick Lutron Caséta devices. It now lets you link any device; picking a Pico still switches the remote to read presses from Lutron.
+- Avoided Home Assistant 2026.8+ deprecation warnings about device lookups.
+
+### Changed
+
+- Every remote keeps its own device again, shown as connected via its Pico or button device. Its device triggers are listed there, so automations made before 1.7.0 keep working. Triggers picked on a linked device with 1.7.0 still work.
+- Requires Home Assistant 2025.8 or newer.
+
 ## [1.7.0] - 2026-10-09
 
 ### Added
@@ -128,7 +141,8 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.4.1...v1.5.0

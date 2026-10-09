@@ -9,7 +9,6 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigSubentryData
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
@@ -31,6 +30,7 @@ from custom_components.button_actions.const import (
     DOMAIN,
     SUBENTRY_BUTTON,
 )
+from custom_components.button_actions.controller import own_device
 
 LIGHT = [{"action": "light.turn_on", "target": {"entity_id": "light.x"}}]
 _ticks = itertools.count()
@@ -113,7 +113,7 @@ async def test_names_titles_and_triggers(hass: HomeAssistant) -> None:
     # No long press on this remote, so it's not offered anywhere.
     assert states[0].attributes["event_types"] == ["short_press", "double_press"]
 
-    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, entry.entry_id)})
+    device = own_device(hass, entry.entry_id)
     triggers = await device_trigger.async_get_triggers(hass, device.id)
     assert {t["type"] for t in triggers} == {"short_press", "double_press"}
 

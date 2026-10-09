@@ -31,6 +31,7 @@ from custom_components.button_actions.const import (
     DOMAIN,
     SUBENTRY_BUTTON,
 )
+from custom_components.button_actions.controller import device_belongs_to, own_device
 
 MOMENTARY = ["initial_press", "short_release", "long_press", "long_release"]
 _ticks = itertools.count()
@@ -108,15 +109,16 @@ async def test_setup_from_device(hass: HomeAssistant) -> None:
     assert subs == {"button_1": [entity_ids[0]], "button_2": [entity_ids[1]]}
     await hass.async_block_till_done()
 
-    # Its gesture entities live on the hub itself; no separate device.
+    # Its gesture entities show on the hub. The remote's own device holds its
+    # triggers and is connected via the hub, which stays the hub integration's.
     registry = er.async_get(hass)
     ours = er.async_entries_for_config_entry(registry, entry.entry_id)
     assert {e.device_id for e in ours} == {device.id}
-    assert (
-        dr.async_get(hass).async_get_device(identifiers={(DOMAIN, entry.entry_id)})
-        is None
+    own = own_device(hass, entry.entry_id)
+    assert own is not None and own.via_device_id == device.id
+    assert not device_belongs_to(
+        dr.async_get(hass).async_get(device.id), entry.entry_id
     )
-    assert entry.entry_id in dr.async_get(hass).async_get(device.id).config_entries
 
 
 async def test_press_only_device_defaults_to_no_long_press(hass: HomeAssistant) -> None:
@@ -207,7 +209,26 @@ async def test_existing_remote_moves_onto_its_device(hass: HomeAssistant) -> Non
     moved = registry.async_get(old_entity.entity_id)
     assert moved is not None  # same entity ID
     assert moved.device_id == device.id
-    assert dr.async_get(hass).async_get(old.id) is None
+    # The old device stays, so automations using its triggers keep working.
+    kept = dr.async_get(hass).async_get(old.id)
+    assert kept is not None and kept.via_device_id == device.id
+
+
+@pytest.mark.skipif(
+    hasattr(dr.DeviceRegistry, "async_get_device_by_identifier"),
+    reason="Home Assistant 2026.8+ can't share devices between integrations",
+)
+async def test_undoes_170_join(hass: HomeAssistant) -> None:
+    """1.7.0 added remotes to their device on older Home Assistant; undo it."""
+    device, entity_ids = _hub(hass)
+    entry = _remote(hass, entity_ids)
+    dr.async_get(hass).async_update_device(
+        device.id, add_config_entry_id=entry.entry_id
+    )
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    hub = dr.async_get(hass).async_get(device.id)
+    assert hub is not None and not device_belongs_to(hub, entry.entry_id)
 
 
 async def test_buttons_on_different_devices_keep_own_device(
@@ -218,7 +239,7 @@ async def test_buttons_on_different_devices_keep_own_device(
     entry = _remote(hass, [first[0], second[0]])
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
-    own = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, entry.entry_id)})
+    own = own_device(hass, entry.entry_id)
     assert own is not None
     ours = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
     assert {e.device_id for e in ours} == {own.id}
@@ -235,12 +256,17 @@ async def test_triggers_on_shared_device(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
     assert second.state is config_entries.ConfigEntryState.LOADED
 
-    triggers = await device_trigger.async_get_triggers(hass, device.id)
-    assert {t["entry_id"] for t in triggers} == {first.entry_id, second.entry_id}
+    # Each remote lists its triggers on its own device.
+    right_device = own_device(hass, second.entry_id)
+    triggers = await device_trigger.async_get_triggers(hass, right_device.id)
+    assert {t["entry_id"] for t in triggers} == {second.entry_id}
+    # A 1.7.0 trigger picked on the shared device still matches its remote.
+    shared = await device_trigger.async_get_triggers(hass, device.id)
+    assert {t["entry_id"] for t in shared} == {first.entry_id, second.entry_id}
 
     right_trigger = next(
         t
-        for t in triggers
+        for t in shared
         if t["entry_id"] == second.entry_id and t["type"] == "short_press"
     )
     assert await async_setup_component(
@@ -300,8 +326,46 @@ async def test_pico_remote_on_pico(hass: HomeAssistant, source_device_missing) -
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     ours = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
-    own = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, entry.entry_id)})
+    own = own_device(hass, entry.entry_id)
+    assert own is not None
     if source_device_missing:
-        assert own is not None and {e.device_id for e in ours} == {own.id}
+        assert {e.device_id for e in ours} == {own.id}
+        assert own.via_device_id is None
     else:
-        assert own is None and {e.device_id for e in ours} == {pico.id}
+        assert {e.device_id for e in ours} == {pico.id}
+        assert own.via_device_id == pico.id
+        assert not device_belongs_to(
+            dr.async_get(hass).async_get(pico.id), entry.entry_id
+        )
+
+
+async def test_reconfigure_links_any_device(hass: HomeAssistant) -> None:
+    """Reconfigure can link a remote to a device that isn't a Pico."""
+    device, entity_ids = _hub(hass, name="Master Bedroom Hub")
+    _, other_ids = _hub(hass, name="Spare Hub")
+    # Buttons from two devices, so nothing is linked automatically.
+    entry = _remote(hass, [entity_ids[0], other_ids[0]])
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": "Hub Remote", "device_id": device.id}
+    )
+    assert result["step_id"] == "reconfigure_events"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
+    assert entry.data["source"] == "event_entity"
+    assert entry.data["source_device"] == device.id
+    ours = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+    assert {e.device_id for e in ours} == {device.id}
+
+    # Clearing the device unlinks it again.
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": "Hub Remote"}
+    )
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    await hass.async_block_till_done()
+    assert "source_device" not in entry.data

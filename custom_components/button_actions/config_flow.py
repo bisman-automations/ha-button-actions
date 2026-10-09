@@ -74,7 +74,9 @@ from .const import (
 )
 from .controller import (
     async_validate_sequence,
+    buttons_from_entry,
     event_role_overrides,
+    linked_device_id,
     remote_capabilities,
     supported_gestures,
 )
@@ -836,8 +838,13 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             title = user_input[CONF_NAME]
             device_id = user_input.get(CONF_DEVICE_ID)
-            if device_id and (
-                not lutron or device_id != entry.data.get(CONF_DEVICE_ID)
+            # An event-entity remote can be linked to any device; only a
+            # Lutron Pico switches it over to reading presses from Lutron.
+            link_only = not lutron and not is_lutron_device(self.hass, device_id)
+            if (
+                device_id
+                and not link_only
+                and (not lutron or device_id != entry.data.get(CONF_DEVICE_ID))
             ):
                 # Moving to core Lutron, or swapping in a replacement Pico.
                 buttons = await async_pico_buttons(self.hass, device_id)
@@ -880,6 +887,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._reconfigure_caps = {
                     CONF_SUPPORTS_DOUBLE: user_input.get(CONF_SUPPORTS_DOUBLE, True),
                     CONF_SUPPORTS_LONG: user_input.get(CONF_SUPPORTS_LONG, True),
+                    CONF_SOURCE_DEVICE: device_id,
                 }
                 return await self.async_step_reconfigure_events()
 
@@ -900,7 +908,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             fields[vol.Optional(CONF_SUPPORTS_LONG, default=current_long)] = (
                 selector.BooleanSelector()
             )
-            fields[vol.Optional(CONF_DEVICE_ID)] = _PICO_DEVICE
+            fields[vol.Optional(CONF_DEVICE_ID)] = selector.DeviceSelector()
             all_entities = [
                 entity
                 for sub in entry.subentries.values()
@@ -912,8 +920,12 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_SUPPORTS_DOUBLE: supports_double,
                 CONF_SUPPORTS_LONG: supports_long,
             }
-            if pico := lutron_device_for_entities(self.hass, all_entities):
-                suggested[CONF_DEVICE_ID] = pico
+            if linked := (
+                entry.data.get(CONF_SOURCE_DEVICE)
+                or lutron_device_for_entities(self.hass, all_entities)
+                or linked_device_id(self.hass, entry, buttons_from_entry(entry))
+            ):
+                suggested[CONF_DEVICE_ID] = linked
 
         return self.async_show_form(
             step_id="reconfigure_lutron" if lutron else "reconfigure",
@@ -949,6 +961,8 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             }
             data[CONF_SOURCE] = SOURCE_EVENT_ENTITY
             data.update(self._reconfigure_caps)
+            if not data.get(CONF_SOURCE_DEVICE):
+                data.pop(CONF_SOURCE_DEVICE, None)
             data[CONF_EVENT_ROLES] = (
                 {t: user_input[t] for t in event_types if t in user_input}
                 if user_input is not None

@@ -35,15 +35,16 @@ TRIGGER_SCHEMA = DEVICE_TRIGGER_BASE_SCHEMA.extend(
 
 
 def _entries_for_device(hass: HomeAssistant, device_id: str) -> list[ConfigEntry]:
-    """Remotes whose gesture entities live on this device.
+    """Remotes with triggers on this device: the remote's own device.
 
-    That's a remote's own device, or the Pico or button device it joined.
-    More than one remote can share a device.
+    Home Assistant 2026.7 and older also ask about the Pico or button device a
+    1.7.0 remote joined; more than one remote can share that device.
     """
     return [
         entry
         for entry in hass.config_entries.async_loaded_entries(DOMAIN)
-        if entry.runtime_data.device_id() == device_id
+        if device_id
+        in (entry.runtime_data.device_id(), entry.runtime_data.linked_device_id)
     ]
 
 
@@ -80,14 +81,15 @@ async def async_attach_trigger(
                 event_trigger.CONF_PLATFORM: "event",
                 event_trigger.CONF_EVENT_TYPE: GESTURE_EVENT,
                 event_trigger.CONF_EVENT_DATA: {
-                    CONF_DEVICE_ID: config[CONF_DEVICE_ID],
-                    "button": config[CONF_SUBTYPE],
-                    "gesture": config[CONF_TYPE],
+                    # A trigger naming its remote matches that remote whichever
+                    # device it was picked on (1.7.0 used the linked device).
                     **(
                         {CONF_ENTRY_ID: config[CONF_ENTRY_ID]}
                         if CONF_ENTRY_ID in config
-                        else {}
+                        else {CONF_DEVICE_ID: config[CONF_DEVICE_ID]}
                     ),
+                    "button": config[CONF_SUBTYPE],
+                    "gesture": config[CONF_TYPE],
                 },
             }
         ),
