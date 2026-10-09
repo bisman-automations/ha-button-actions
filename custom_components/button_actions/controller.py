@@ -137,6 +137,24 @@ def _dispatch(detector: GestureDetector, role: str) -> None:
         detector.hold()
 
 
+def own_device(hass: HomeAssistant, entry_id: str) -> dr.DeviceEntry | None:
+    """The remote's own "Button remote" device, if it has one."""
+    registry = dr.async_get(hass)
+    identifier = (DOMAIN, entry_id)
+    if hasattr(registry, "async_get_device_by_identifier"):
+        # Home Assistant 2026.8+: identifiers are unique per config entry.
+        return registry.async_get_device_by_identifier(identifier, entry_id)
+    return registry.async_get_device(identifiers={identifier})
+
+
+def device_belongs_to(device: dr.DeviceEntry, entry_id: str) -> bool:
+    """Whether a config entry owns, or since 2026.8 shares, a device."""
+    if hasattr(device, "config_entry_id"):
+        # Home Assistant 2026.8+: a device belongs to one config entry.
+        return device.config_entry_id == entry_id
+    return entry_id in device.config_entries
+
+
 def linked_device_id(
     hass: HomeAssistant, entry: ConfigEntry, buttons: list[ButtonConfig]
 ) -> str | None:
@@ -229,6 +247,10 @@ class ButtonActionsController:
         self._device_id: str | None = entry.data.get(CONF_DEVICE_ID)
         self.buttons = buttons_from_entry(entry)
         self.linked_device_id = linked_device_id(hass, entry, self.buttons)
+        # The remote's own device; set up in async_setup_entry. It holds the
+        # device triggers, which Home Assistant only lists on a device that
+        # belongs to this integration.
+        self.own_device_id: str | None = None
         # Event-entity remotes: entity_id -> (slot, detector)
         # Lutron remotes: slot -> (slot, detector)
         self._detectors: dict[str, tuple[str, GestureDetector]] = {}
@@ -410,13 +432,16 @@ class ButtonActionsController:
 
     @callback
     def device_id(self) -> str | None:
-        """The device this remote's entities live on."""
-        if self.linked_device_id:
-            return self.linked_device_id
-        device = dr.async_get(self.hass).async_get_device(
-            identifiers={(DOMAIN, self.entry.entry_id)}
-        )
+        """The remote's own device, which holds its device triggers."""
+        if self.own_device_id:
+            return self.own_device_id
+        device = own_device(self.hass, self.entry.entry_id)
         return device.id if device else None
+
+    @callback
+    def entity_device_id(self) -> str | None:
+        """The device the gesture entities show on: the linked one if any."""
+        return self.linked_device_id or self.device_id()
 
     @callback
     def _fire_gesture_event(self, slot: str, gesture: str) -> None:
@@ -425,6 +450,7 @@ class ButtonActionsController:
             GESTURE_EVENT,
             {
                 CONF_DEVICE_ID: self.device_id(),
+                "linked_device_id": self.linked_device_id,
                 "entry_id": self.entry.entry_id,
                 "remote": self.entry.title,
                 "button": slot,

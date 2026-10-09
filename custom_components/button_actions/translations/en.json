@@ -50,15 +50,15 @@
       },
       "reconfigure": {
         "title": "Reconfigure remote",
-        "description": "Rename this remote, or change what it supports. To read presses straight from the Lutron Caséta integration instead, pick the Pico below; every button keeps its actions. Otherwise you'll check how its event types are used next.",
+        "description": "Rename this remote, change what it supports, or pick the device it belongs to. Its gesture events then show on that device's page. Picking a Lutron Caséta Pico instead reads presses straight from Lutron; every button keeps its actions. Otherwise you'll check how its event types are used next.",
         "data": {
           "name": "Name",
-          "device_id": "Switch to Lutron Caséta Pico",
+          "device_id": "Device",
           "supports_double": "Supports double press",
           "supports_long": "Supports long press"
         },
         "data_description": {
-          "device_id": "Optional. Once switched, this remote no longer uses its event entities, so other integrations that provide them are no longer needed for it.",
+          "device_id": "Optional. The hub, switch or remote these buttons belong to. A Lutron Caséta Pico switches the remote to read presses from Lutron, so other integrations that provide its event entities are no longer needed for it.",
           "supports_double": "Turn off if the remote can't be pressed twice quickly, or you don't want double presses. Short presses then always fire instantly.",
           "supports_long": "Turn off if the remote can't be held down, or you don't want long presses. Holding a button then counts as a short press."
         }

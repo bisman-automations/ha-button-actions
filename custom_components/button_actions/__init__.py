@@ -17,6 +17,7 @@ from .const import (
     CONF_LAYOUT,
     CONF_REPEAT,
     CONF_SLOT,
+    DOMAIN,
     LAYOUT_PICO,
     NUMBERED_SLOTS,
     SLOT_TITLES,
@@ -48,8 +49,9 @@ async def async_setup_entry(
     _async_remove_stale_entities(hass, entry, controller.slots)
     # Before the update listener is added, so retitling doesn't trigger a reload.
     _async_number_button_titles(hass, entry)
+    controller.own_device_id = _async_own_device(hass, entry, controller)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    _async_tidy_devices(hass, entry, controller.device_id())
+    _async_tidy_devices(hass, entry, controller.own_device_id)
     await controller.async_start()
     async_track_issues(hass, entry, controller)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -98,19 +100,50 @@ def _async_number_button_titles(hass: HomeAssistant, entry: ConfigEntry) -> None
 
 
 @callback
+def _async_own_device(
+    hass: HomeAssistant, entry: ConfigEntry, controller: ButtonActionsController
+) -> str:
+    """Create or update the remote's own device.
+
+    It holds the remote's device triggers. When the remote is linked to a
+    Pico or button device, it shows as connected via that device, and the
+    gesture entities show on that device instead.
+    """
+    registry = dr.async_get(hass)
+    # No subentry: the device is the whole remote, not one button.
+    device = registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, entry.entry_id)},
+        name=entry.title,
+        manufacturer="Button Actions",
+        model="Button remote",
+    )
+    if device.via_device_id != controller.linked_device_id:
+        registry.async_update_device(
+            device.id, via_device_id=controller.linked_device_id
+        )
+    return device.id
+
+
+@callback
 def _async_tidy_devices(
     hass: HomeAssistant, entry: ConfigEntry, current_device_id: str | None
 ) -> None:
-    """Detach the remote from devices it no longer lives on.
+    """Detach the remote from every device except its own.
 
-    When a remote joins its Pico or button device, its old "Button remote"
-    device is removed; if it stops being linked, it leaves that device.
+    1.7.0 added remotes to their Pico or button device on Home Assistant
+    versions that allowed it; that's undone here.
     """
     if current_device_id is None:
         return
     registry = dr.async_get(hass)
     for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
-        if device.id != current_device_id:
+        if device.id == current_device_id:
+            continue
+        if hasattr(device, "config_entry_id"):
+            # Home Assistant 2026.8+: the device is wholly ours.
+            registry.async_remove_device(device.id)
+        else:
             registry.async_update_device(
                 device.id, remove_config_entry_id=entry.entry_id
             )

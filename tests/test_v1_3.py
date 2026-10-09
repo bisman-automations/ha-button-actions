@@ -42,6 +42,7 @@ from custom_components.button_actions.const import (
     SOURCE_LUTRON,
     SUBENTRY_BUTTON,
 )
+from custom_components.button_actions.controller import own_device
 
 ON = "event.office_remote_on"
 OFF = "event.office_remote_off"
@@ -107,7 +108,7 @@ async def _event_remote(hass: HomeAssistant, buttons, data=None):
 
 
 def _device_id(hass: HomeAssistant, entry) -> str:
-    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, entry.entry_id)})
+    device = own_device(hass, entry.entry_id)
     assert device is not None
     return device.id
 

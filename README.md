@@ -39,7 +39,7 @@ Button Actions runs a small state machine per button inside Home Assistant, so e
 
 ## Requirements
 
-- Home Assistant 2025.4 or newer. The integration icon shows in the UI on 2026.3 and newer.
+- Home Assistant 2025.8 or newer. The integration icon shows in the UI on 2026.3 and newer.
 - One of:
   - A Pico paired with the core **Lutron Caséta** integration, or
   - Event entities for each button, such as those from [lutron-caseta-events](https://github.com/jharris4/lutron-caseta-events), Matter, Zigbee or ESPHome.
@@ -69,10 +69,10 @@ The quickest way. Pick the device the buttons belong to: a Lutron Caséta Pico, 
 
 Then use the ⚙ next to each button to choose what it does.
 
-The remote is linked to that device. Its gesture entities and device triggers appear on the device's page alongside its own integration, so everything about the remote is in one place:
+The remote is linked to that device: its gesture events appear on the device's page, next to the device's own entities, and the remote shows as connected via that device:
 
 <p align="center">
-  <img src="docs/images/device-page.png" alt="A hub's device page showing both the Matter and Button Actions integrations, with the hub's buttons and their gesture events" width="640">
+  <img src="docs/images/device-page.png" alt="A hub's device page with the hub's buttons and the remote's gesture events" width="640">
 </p>
 
 ### Import from a blueprint automation
@@ -126,7 +126,7 @@ Each remote lists its buttons right under it on the Button Actions integration p
 | ⚙ next to a button | Set its short press, double press, long press and release-after-long-press actions, whether the long press repeats while held, whether to detect every gesture, and which event entities feed it. |
 | ⋮ next to a button | Delete that button. Its gesture entity is removed too. |
 | ⚙ on the remote | Click timing for the whole remote: double-press window, hold time and repeat interval. |
-| ⋮ on the remote → **Reconfigure** | Rename the remote, turn double and long press support on or off, check or change what each event type means, or switch it to a Lutron Caséta Pico. |
+| ⋮ on the remote → **Reconfigure** | Rename the remote, turn double and long press support on or off, link it to the device its buttons belong to, check or change what each event type means, or switch it to a Lutron Caséta Pico. |
 | ⋮ on the remote → **Download diagnostics** | Save the remote's config and live button state, to attach to a bug report. |
 | **Add button** at the top of the page | Add a button you skipped during setup to one of your remotes. |
 
@@ -142,7 +142,7 @@ Remotes imported from the blueprint use event entities from lutron-caseta-events
 
 ### Using a button in your own automations
 
-Each remote has triggers for every button and gesture, such as *"Middle button" double pressed*. In the automation editor, pick the remote's device: the Pico or button device it's linked to, or the remote itself if its buttons come from several devices.
+Each remote has triggers for every button and gesture, such as *"Middle button" double pressed*. In the automation editor, pick the remote's own device (named after the remote, and connected via its Pico or button device). On Home Assistant 2026.4 and newer you can also use **Event received** on a button's gesture entity, which is shown on the linked device.
 
 A button only waits for double and long presses when it has an action for them, so its short presses stay instant. To use a double or long press only from an automation, turn on **Detect every gesture** on that button. Its short presses then wait briefly for a possible second press.
 
@@ -174,7 +174,7 @@ Imported remotes keep the blueprint's timing so they feel the same as before. Lo
 
 ### To 1.7.0
 
-Existing remotes move onto their Pico or button device automatically. Entity IDs don't change and automations using their triggers keep working. Remotes whose buttons come from more than one device keep their own device.
+Existing remotes are linked to their Pico or button device automatically, and entity IDs don't change. To link a remote whose buttons come from more than one device, pick a device under **Reconfigure**.
 
 ### From 1.0.0
 
