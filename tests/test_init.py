@@ -248,7 +248,7 @@ async def test_migrate_from_1_0(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done(wait_background_tasks=True)
 
-    assert entry.minor_version == 2
+    assert entry.minor_version == 3
     assert "buttons" not in entry.data
     assert set(entry.options) == {CONF_HOLD_MS, CONF_DOUBLE_MS, CONF_REPEAT_MS}
     subs = {s.unique_id: s for s in entry.subentries.values()}

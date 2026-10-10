@@ -51,6 +51,7 @@ class ButtonGestureEvent(EventEntity):
     """Fires short_press, double_press, long_press and long_release."""
 
     _attr_has_entity_name = True
+    _attr_should_poll = False
     _attr_device_class = EventDeviceClass.BUTTON
 
     def __init__(
@@ -75,6 +76,10 @@ class ButtonGestureEvent(EventEntity):
         # Home Assistant 2026.8 a device belongs to one integration, so another
         # integration's device can't be claimed through device_info.
         controller = entry.runtime_data
+        # A linked device already shows its own button events; these would
+        # look like duplicates there, so they start off disabled. Device
+        # triggers and actions don't need them.
+        self._attr_entity_registry_enabled_default = controller.linked_device_id is None
         if device_id := controller.entity_device_id():
             self.device_entry = dr.async_get(controller.hass).async_get(device_id)
 

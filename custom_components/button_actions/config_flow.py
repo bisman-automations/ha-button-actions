@@ -13,6 +13,7 @@ import voluptuous as vol
 from homeassistant.config_entries import (
     SOURCE_IMPORT,
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     ConfigSubentryData,
@@ -73,6 +74,7 @@ from .const import (
     button_title,
 )
 from .controller import (
+    async_set_gesture_entities_enabled,
     async_validate_sequence,
     buttons_from_entry,
     event_role_overrides,
@@ -616,7 +618,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
     """Add a remote."""
 
     VERSION = 1
-    MINOR_VERSION = 2
+    MINOR_VERSION = 3
 
     def __init__(self) -> None:
         """Initialize."""
@@ -864,6 +866,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                         SLOT_TITLES[slot] for slot in missing
                     )
                 else:
+                    self._hide_gestures_if_newly_linked(entry)
                     for sub in list(entry.subentries.values()):
                         if sub.subentry_type == SUBENTRY_BUTTON and sub.data.get(
                             CONF_ENTITIES
@@ -871,7 +874,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                             self.hass.config_entries.async_update_subentry(
                                 entry, sub, data={**sub.data, CONF_ENTITIES: []}
                             )
-                    return self.async_update_reload_and_abort(
+                    return self._async_finish_reconfigure(
                         entry,
                         title=title,
                         data={
@@ -881,7 +884,7 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                         },
                     )
             elif lutron:
-                return self.async_update_reload_and_abort(entry, title=title)
+                return self._async_finish_reconfigure(entry, title=title)
             else:
                 self._reconfigure_title = title
                 self._reconfigure_caps = {
@@ -936,6 +939,27 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders=placeholders,
         )
 
+    def _async_finish_reconfigure(
+        self, entry: ConfigEntry, **changes: Any
+    ) -> ConfigFlowResult:
+        """Save a reconfigured remote and get it reloaded.
+
+        A loaded remote's update listener reloads it; Home Assistant 2026.10+
+        warns if the flow reloads it as well. A remote that isn't loaded has no
+        listener, so the flow reloads it.
+        """
+        if entry.state is ConfigEntryState.LOADED:
+            return self.async_update_and_abort(entry, **changes)
+        return self.async_update_reload_and_abort(entry, **changes)
+
+    def _hide_gestures_if_newly_linked(self, entry: ConfigEntry) -> None:
+        """Disable gesture entities when a remote is first linked to a device.
+
+        The device already shows its own button events.
+        """
+        if not linked_device_id(self.hass, entry, buttons_from_entry(entry)):
+            async_set_gesture_entities_enabled(self.hass, entry, enabled=False)
+
     async def async_step_reconfigure_events(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -963,12 +987,14 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             data.update(self._reconfigure_caps)
             if not data.get(CONF_SOURCE_DEVICE):
                 data.pop(CONF_SOURCE_DEVICE, None)
+            else:
+                self._hide_gestures_if_newly_linked(entry)
             data[CONF_EVENT_ROLES] = (
                 {t: user_input[t] for t in event_types if t in user_input}
                 if user_input is not None
                 else overrides
             )
-            return self.async_update_reload_and_abort(entry, title=title, data=data)
+            return self._async_finish_reconfigure(entry, title=title, data=data)
 
         role_selector = selector.SelectSelector(
             selector.SelectSelectorConfig(

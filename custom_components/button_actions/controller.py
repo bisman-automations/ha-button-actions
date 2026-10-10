@@ -155,6 +155,26 @@ def device_belongs_to(device: dr.DeviceEntry, entry_id: str) -> bool:
     return entry_id in device.config_entries
 
 
+@callback
+def async_set_gesture_entities_enabled(
+    hass: HomeAssistant, entry: ConfigEntry, *, enabled: bool
+) -> None:
+    """Enable or disable the gesture entities this integration manages.
+
+    Disabling only touches enabled entities; enabling only touches ones this
+    integration disabled, so a choice made by the user is kept.
+    """
+    registry = er.async_get(hass)
+    for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if enabled and reg_entry.disabled_by is er.RegistryEntryDisabler.INTEGRATION:
+            registry.async_update_entity(reg_entry.entity_id, disabled_by=None)
+        elif not enabled and reg_entry.disabled_by is None:
+            registry.async_update_entity(
+                reg_entry.entity_id,
+                disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+            )
+
+
 def linked_device_id(
     hass: HomeAssistant, entry: ConfigEntry, buttons: list[ButtonConfig]
 ) -> str | None:
