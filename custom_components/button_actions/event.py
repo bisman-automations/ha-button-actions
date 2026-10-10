@@ -30,6 +30,9 @@ async def async_setup_entry(
 ) -> None:
     """Create one gesture entity per configured button."""
     controller = entry.runtime_data
+    if controller.linked_device_id:
+        # The linked device already shows its own button events.
+        return
     slots = controller.slots
     if entry.data.get(CONF_LAYOUT) == LAYOUT_NUMBERED:
         # "Button 1", "Button 2"...
@@ -70,17 +73,11 @@ class ButtonGestureEvent(EventEntity):
         # Numbered so Home Assistant's alphabetical list matches the remote.
         self._attr_translation_placeholders = placeholders
         self._attr_icon = icon
-        # Show on the Pico or button device this remote reads from, so its
-        # gestures sit on that device's page; otherwise on the remote's own
-        # device. Attached by device_entry rather than device_info: since
-        # Home Assistant 2026.8 a device belongs to one integration, so another
-        # integration's device can't be claimed through device_info.
+        # On the remote's own device. Attached by device_entry rather than
+        # device_info, so entities from several button subentries don't each
+        # claim the device (Home Assistant 2026.8+ gives a device one subentry).
         controller = entry.runtime_data
-        # A linked device already shows its own button events; these would
-        # look like duplicates there, so they start off disabled. Device
-        # triggers and actions don't need them.
-        self._attr_entity_registry_enabled_default = controller.linked_device_id is None
-        if device_id := controller.entity_device_id():
+        if device_id := controller.device_id():
             self.device_entry = dr.async_get(controller.hass).async_get(device_id)
 
     async def async_added_to_hass(self) -> None:

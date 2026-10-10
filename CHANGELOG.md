@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.3] - 2026-10-09
+
+### Added
+
+- **Pick a device** finds buttons on a device connected via a hub, such as the "Buttons" device a SwitchBot Hub 2 adds over Matter. Pick the hub or the buttons device; the remote is linked to the device the buttons are on.
+
+### Changed
+
+- A remote linked to a device has no gesture event entities: the device shows its own button events. Existing ones, including those 1.7.2 disabled, are removed. Device triggers and actions work as before. Remotes that aren't linked keep theirs.
+
 ## [1.7.2] - 2026-10-09
 
 ### Changed
@@ -152,7 +162,8 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.2...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.3...HEAD
+[1.7.3]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.6.0...v1.7.0

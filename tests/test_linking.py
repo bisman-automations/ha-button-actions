@@ -16,7 +16,6 @@ from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
-    async_fire_time_changed,
     async_mock_service,
 )
 
@@ -110,12 +109,10 @@ async def test_setup_from_device(hass: HomeAssistant) -> None:
     assert subs == {"button_1": [entity_ids[0]], "button_2": [entity_ids[1]]}
     await hass.async_block_till_done()
 
-    # Its gesture entities show on the hub. The remote's own device holds its
-    # triggers and is connected via the hub, which stays the hub integration's.
+    # No gesture entities: the hub shows its own button events. The remote's
+    # own device holds its triggers and is connected via the hub.
     registry = er.async_get(hass)
-    ours = er.async_entries_for_config_entry(registry, entry.entry_id)
-    assert {e.device_id for e in ours} == {device.id}
-    assert all(e.disabled_by is not None for e in ours)
+    assert er.async_entries_for_config_entry(registry, entry.entry_id) == []
     own = own_device(hass, entry.entry_id)
     assert own is not None and own.via_device_id == device.id
     assert not device_belongs_to(
@@ -208,9 +205,8 @@ async def test_existing_remote_moves_onto_its_device(hass: HomeAssistant) -> Non
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    moved = registry.async_get(old_entity.entity_id)
-    assert moved is not None  # same entity ID
-    assert moved.device_id == device.id
+    # Its gesture entity is removed; the hub shows its own button events.
+    assert registry.async_get(old_entity.entity_id) is None
     # The old device stays, so automations using its triggers keep working.
     kept = dr.async_get(hass).async_get(old.id)
     assert kept is not None and kept.via_device_id == device.id
@@ -334,7 +330,7 @@ async def test_pico_remote_on_pico(hass: HomeAssistant, source_device_missing) -
         assert {e.device_id for e in ours} == {own.id}
         assert own.via_device_id is None
     else:
-        assert {e.device_id for e in ours} == {pico.id}
+        assert ours == []
         assert own.via_device_id == pico.id
         assert not device_belongs_to(
             dr.async_get(hass).async_get(pico.id), entry.entry_id
@@ -360,10 +356,8 @@ async def test_reconfigure_links_any_device(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
     assert entry.data["source"] == "event_entity"
     assert entry.data["source_device"] == device.id
-    ours = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
-    assert {e.device_id for e in ours} == {device.id}
-    # The hub shows its own button events, so these are hidden.
-    assert all(e.disabled_by is er.RegistryEntryDisabler.INTEGRATION for e in ours)
+    # Linked: the hub shows its own button events, so no gesture entities.
+    assert er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id) == []
 
     # Clearing the device unlinks it again.
     result = await entry.start_reconfigure_flow(hass)
@@ -373,18 +367,14 @@ async def test_reconfigure_links_any_device(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     await hass.async_block_till_done()
     assert "source_device" not in entry.data
-    # Unlinked again, so its gesture entities come back.
+    # Unlinked again, so its gesture entities come back on its own device.
     ours = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
-    assert all(e.disabled_by is None for e in ours)
-    # Let Home Assistant's reload after re-enabling entities run.
-    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
-    await hass.async_block_till_done(wait_background_tasks=True)
-    assert await hass.config_entries.async_unload(entry.entry_id)
-    await hass.async_block_till_done()
+    own = own_device(hass, entry.entry_id)
+    assert len(ours) == 2 and {e.device_id for e in ours} == {own.id}
 
 
-async def test_migration_hides_linked_gesture_entities(hass: HomeAssistant) -> None:
-    """Remotes linked before 1.7.2 get their gesture entities hidden once."""
+async def test_linked_remote_gesture_entities_removed(hass: HomeAssistant) -> None:
+    """Gesture entities of a linked remote, even ones 1.7.2 disabled, are removed."""
     _, entity_ids = _hub(hass)
     entry = _remote(hass, entity_ids)
     registry = er.async_get(hass)
@@ -393,13 +383,60 @@ async def test_migration_hides_linked_gesture_entities(hass: HomeAssistant) -> N
         DOMAIN,
         f"{entry.entry_id}_button_1",
         config_entry=entry,
+        disabled_by=er.RegistryEntryDisabler.INTEGRATION,
         suggested_object_id="hub_remote_button_1",
     )
-    assert existing.disabled_by is None
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     assert entry.minor_version == 3
-    assert (
-        registry.async_get(existing.entity_id).disabled_by
-        is er.RegistryEntryDisabler.INTEGRATION
+    assert registry.async_get(existing.entity_id) is None
+
+
+async def test_buttons_on_device_connected_via_hub(hass: HomeAssistant) -> None:
+    """A Matter bridge puts its buttons on a device connected via the hub."""
+    matter = MockConfigEntry(domain="matter")
+    matter.add_to_hass(hass)
+    devices = dr.async_get(hass)
+    hub = devices.async_get_or_create(
+        config_entry_id=matter.entry_id,
+        identifiers={("matter", "bridge")},
+        name="Girl's Bedroom Hub",
     )
+    bulb = devices.async_get_or_create(
+        config_entry_id=matter.entry_id,
+        identifiers={("matter", "bulb")},
+        name="Color Bulb",
+    )
+    buttons = devices.async_get_or_create(
+        config_entry_id=matter.entry_id,
+        identifiers={("matter", "buttons")},
+        name="Girl's Bedroom Hub Buttons",
+    )
+    for device in (bulb, buttons):
+        devices.async_update_device(device.id, via_device_id=hub.id)
+    registry = er.async_get(hass)
+    for n in (1, 2):
+        reg = registry.async_get_or_create(
+            "event",
+            "matter",
+            f"button-{n}",
+            config_entry=matter,
+            device_id=buttons.id,
+            capabilities={"event_types": ["initial_press"]},
+            original_name="Button",
+        )
+        hass.states.async_set(
+            reg.entity_id, "unknown", {"event_types": ["initial_press"]}
+        )
+
+    result = await _device_flow(hass, hub.id)
+    assert result["step_id"] == "device_confirm"
+    assert result["description_placeholders"]["count"] == "2"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"supports_double": False, "supports_long": False}
+    )
+    entry = result["result"]
+    assert entry.title == "Girl's Bedroom Hub"
+    # Linked to the device the buttons are on.
+    assert entry.data["source_device"] == buttons.id
+    await hass.async_block_till_done()

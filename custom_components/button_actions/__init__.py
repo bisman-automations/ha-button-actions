@@ -27,12 +27,7 @@ from .const import (
     numbered_title,
     slot_number,
 )
-from .controller import (
-    ButtonActionsController,
-    async_set_gesture_entities_enabled,
-    buttons_from_entry,
-    linked_device_id,
-)
+from .controller import ButtonActionsController
 from .issues import async_delete_issues, async_track_issues
 
 _LOGGER = logging.getLogger(__name__)
@@ -51,13 +46,14 @@ async def async_setup_entry(
     """Set up one remote."""
     controller = ButtonActionsController(hass, entry)
     entry.runtime_data = controller
-    _async_remove_stale_entities(hass, entry, controller.slots)
+    # A remote linked to a device has no gesture entities: the device already
+    # shows its own button events.
+    _async_remove_stale_entities(
+        hass, entry, [] if controller.linked_device_id else controller.slots
+    )
     # Before the update listener is added, so retitling doesn't trigger a reload.
     _async_number_button_titles(hass, entry)
     controller.own_device_id = _async_own_device(hass, entry, controller)
-    if controller.linked_device_id is None:
-        # No longer linked: bring back gesture entities hidden while it was.
-        async_set_gesture_entities_enabled(hass, entry, enabled=True)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _async_tidy_devices(hass, entry, controller.own_device_id)
     await controller.async_start()
@@ -161,7 +157,7 @@ def _async_tidy_devices(
 def _async_remove_stale_entities(
     hass: HomeAssistant, entry: ConfigEntry, slots: list[str]
 ) -> None:
-    """Drop gesture entities for buttons that were removed."""
+    """Drop gesture entities for buttons that were removed, or aren't shown."""
     registry = er.async_get(hass)
     keep = {f"{entry.entry_id}_{slot}" for slot in slots}
     for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
@@ -214,10 +210,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info("Migrated %s to per-button subentries", entry.title)
 
     if entry.minor_version < 3:
-        # 1.7.2: gesture entities of a remote linked to a device are disabled,
-        # since the device already shows its own button events.
-        if linked_device_id(hass, entry, buttons_from_entry(entry)):
-            async_set_gesture_entities_enabled(hass, entry, enabled=False)
+        # 1.7.2 disabled a linked remote's gesture entities here; since 1.7.3
+        # setup removes them instead.
         hass.config_entries.async_update_entry(entry, minor_version=3)
 
     return True
