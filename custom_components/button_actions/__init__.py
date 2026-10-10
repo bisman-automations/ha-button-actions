@@ -27,7 +27,12 @@ from .const import (
     numbered_title,
     slot_number,
 )
-from .controller import ButtonActionsController
+from .controller import (
+    ButtonActionsController,
+    async_set_gesture_entities_enabled,
+    buttons_from_entry,
+    linked_device_id,
+)
 from .issues import async_delete_issues, async_track_issues
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +55,9 @@ async def async_setup_entry(
     # Before the update listener is added, so retitling doesn't trigger a reload.
     _async_number_button_titles(hass, entry)
     controller.own_device_id = _async_own_device(hass, entry, controller)
+    if controller.linked_device_id is None:
+        # No longer linked: bring back gesture entities hidden while it was.
+        async_set_gesture_entities_enabled(hass, entry, enabled=True)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _async_tidy_devices(hass, entry, controller.own_device_id)
     await controller.async_start()
@@ -204,5 +212,12 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry, data=data, options=options, minor_version=2
         )
         _LOGGER.info("Migrated %s to per-button subentries", entry.title)
+
+    if entry.minor_version < 3:
+        # 1.7.2: gesture entities of a remote linked to a device are disabled,
+        # since the device already shows its own button events.
+        if linked_device_id(hass, entry, buttons_from_entry(entry)):
+            async_set_gesture_entities_enabled(hass, entry, enabled=False)
+        hass.config_entries.async_update_entry(entry, minor_version=3)
 
     return True

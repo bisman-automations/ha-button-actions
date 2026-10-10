@@ -16,6 +16,7 @@ from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
+    async_fire_time_changed,
     async_mock_service,
 )
 
@@ -114,6 +115,7 @@ async def test_setup_from_device(hass: HomeAssistant) -> None:
     registry = er.async_get(hass)
     ours = er.async_entries_for_config_entry(registry, entry.entry_id)
     assert {e.device_id for e in ours} == {device.id}
+    assert all(e.disabled_by is not None for e in ours)
     own = own_device(hass, entry.entry_id)
     assert own is not None and own.via_device_id == device.id
     assert not device_belongs_to(
@@ -360,6 +362,8 @@ async def test_reconfigure_links_any_device(hass: HomeAssistant) -> None:
     assert entry.data["source_device"] == device.id
     ours = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
     assert {e.device_id for e in ours} == {device.id}
+    # The hub shows its own button events, so these are hidden.
+    assert all(e.disabled_by is er.RegistryEntryDisabler.INTEGRATION for e in ours)
 
     # Clearing the device unlinks it again.
     result = await entry.start_reconfigure_flow(hass)
@@ -369,3 +373,33 @@ async def test_reconfigure_links_any_device(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     await hass.async_block_till_done()
     assert "source_device" not in entry.data
+    # Unlinked again, so its gesture entities come back.
+    ours = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+    assert all(e.disabled_by is None for e in ours)
+    # Let Home Assistant's reload after re-enabling entities run.
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_migration_hides_linked_gesture_entities(hass: HomeAssistant) -> None:
+    """Remotes linked before 1.7.2 get their gesture entities hidden once."""
+    _, entity_ids = _hub(hass)
+    entry = _remote(hass, entity_ids)
+    registry = er.async_get(hass)
+    existing = registry.async_get_or_create(
+        "event",
+        DOMAIN,
+        f"{entry.entry_id}_button_1",
+        config_entry=entry,
+        suggested_object_id="hub_remote_button_1",
+    )
+    assert existing.disabled_by is None
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.minor_version == 3
+    assert (
+        registry.async_get(existing.entity_id).disabled_by
+        is er.RegistryEntryDisabler.INTEGRATION
+    )

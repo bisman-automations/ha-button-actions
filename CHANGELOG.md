@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-10-09
+
+### Changed
+
+- A remote linked to a device no longer adds a second set of button events to that device's page. Its gesture event entities are created disabled, and those of existing linked remotes are disabled once. Device triggers and actions work as before; enable the entities to see gestures in the logbook and history. If a remote stops being linked, they're enabled again.
+- Gesture event entities no longer poll.
+
+### Fixed
+
+- Reconfigure no longer triggers Home Assistant 2026.10's warning about reloading an entry that already reloads itself, which stops working in 2026.12.
+
 ## [1.7.1] - 2026-10-09
 
 ### Fixed
@@ -141,7 +152,8 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.2...HEAD
+[1.7.2]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.5.0...v1.6.0
