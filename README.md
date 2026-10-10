@@ -69,7 +69,7 @@ The quickest way. Pick the device the buttons belong to: a Lutron Caséta Pico, 
 
 Then use the ⚙ next to each button to choose what it does.
 
-The remote is linked to the device its buttons are on and shows as connected via it. It uses the device's own button events and doesn't add any of its own.
+The remote is linked to the device its buttons are on. On Home Assistant 2026.8 and newer, each device's page lists the other under **Linked devices**, the same way a controller and its network client are linked; older versions show the remote as connected via the device. The remote uses the device's own button events and doesn't add any of its own.
 
 Some devices only report a press, with no release and nothing for a held button. A SwitchBot Hub 2's on and off buttons work this way. Long press is then turned off for you. If a quick second press doesn't register either, turn off **Supports double press** too, so short presses fire instantly.
 
@@ -140,7 +140,7 @@ Remotes imported from the blueprint use event entities from lutron-caseta-events
 
 ### Using a button in your own automations
 
-Each remote has triggers for every button and gesture, such as *"Middle button" double pressed*. In the automation editor, pick the remote's own device (named after the remote, and connected via its Pico or button device). On Home Assistant 2026.4 and newer, a remote that isn't linked to a device can also use **Event received** on a button's gesture entity.
+Each remote has triggers for every button and gesture, such as *"Middle button" double pressed*. In the automation editor, pick the remote's own device (named after the remote, and listed under **Linked devices** on its Pico or button device). On Home Assistant 2026.4 and newer, a remote that isn't linked to a device can also use **Event received** on a button's gesture entity.
 
 A button only waits for double and long presses when it has an action for them, so its short presses stay instant. To use a double or long press only from an automation, turn on **Detect every gesture** on that button. Its short presses then wait briefly for a possible second press.
 

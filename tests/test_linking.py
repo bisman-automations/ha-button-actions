@@ -37,6 +37,22 @@ MOMENTARY = ["initial_press", "short_release", "long_press", "long_release"]
 _ticks = itertools.count()
 
 
+SHARED_IDENTIFIERS = hasattr(dr.DeviceRegistry, "async_get_device_by_identifier")
+
+
+def _is_linked(hass: HomeAssistant, own: dr.DeviceEntry, device_id: str) -> bool:
+    """Whether the remote's own device is linked to the device.
+
+    Home Assistant 2026.8+ links devices that share identifiers ("Linked
+    devices"); older versions show the remote as connected via it.
+    """
+
+    if not SHARED_IDENTIFIERS:
+        return own.via_device_id == device_id
+    device = dr.async_get(hass).async_get(device_id)
+    return own.via_device_id is None and device.identifiers <= own.identifiers
+
+
 def _hub(hass: HomeAssistant, event_types=MOMENTARY, count=2, name="Boys Hub"):
     """A Matter-style hub with button event entities, like a SwitchBot Hub 2."""
     matter = MockConfigEntry(domain="matter")
@@ -114,7 +130,7 @@ async def test_setup_from_device(hass: HomeAssistant) -> None:
     registry = er.async_get(hass)
     assert er.async_entries_for_config_entry(registry, entry.entry_id) == []
     own = own_device(hass, entry.entry_id)
-    assert own is not None and own.via_device_id == device.id
+    assert own is not None and _is_linked(hass, own, device.id)
     assert not device_belongs_to(
         dr.async_get(hass).async_get(device.id), entry.entry_id
     )
@@ -209,7 +225,7 @@ async def test_existing_remote_moves_onto_its_device(hass: HomeAssistant) -> Non
     assert registry.async_get(old_entity.entity_id) is None
     # The old device stays, so automations using its triggers keep working.
     kept = dr.async_get(hass).async_get(old.id)
-    assert kept is not None and kept.via_device_id == device.id
+    assert kept is not None and _is_linked(hass, kept, device.id)
 
 
 @pytest.mark.skipif(
@@ -331,7 +347,7 @@ async def test_pico_remote_on_pico(hass: HomeAssistant, source_device_missing) -
         assert own.via_device_id is None
     else:
         assert ours == []
-        assert own.via_device_id == pico.id
+        assert _is_linked(hass, own, pico.id)
         assert not device_belongs_to(
             dr.async_get(hass).async_get(pico.id), entry.entry_id
         )
@@ -440,3 +456,39 @@ async def test_buttons_on_device_connected_via_hub(hass: HomeAssistant) -> None:
     # Linked to the device the buttons are on.
     assert entry.data["source_device"] == buttons.id
     await hass.async_block_till_done()
+
+
+@pytest.mark.skipif(not SHARED_IDENTIFIERS, reason="Linked devices need 2026.8+")
+async def test_linked_devices_card(hass: HomeAssistant, hass_ws_client) -> None:
+    """The hub's page lists the remote under "Linked devices", and back."""
+    device, _ = _hub(hass)
+    result = await _device_flow(hass, device.id)
+    entry = (await hass.config_entries.flow.async_configure(result["flow_id"], {}))[
+        "result"
+    ]
+    await hass.async_block_till_done()
+    own = own_device(hass, entry.entry_id)
+    assert await async_setup_component(hass, "config", {})
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id(
+        {"type": "config/device_registry/list_linked_devices", "device_id": device.id}
+    )
+    response = await client.receive_json()
+    assert response["success"], response
+    assert response["result"]["linked_devices"] == [own.id]
+
+
+@pytest.mark.skipif(not SHARED_IDENTIFIERS, reason="Linked devices need 2026.8+")
+async def test_second_remote_on_same_device(hass: HomeAssistant) -> None:
+    """Only one remote can share a device's identifiers; the next uses via."""
+    device, entity_ids = _hub(hass)
+    first = _remote(hass, [entity_ids[0]], title="Left")
+    second = _remote(hass, [entity_ids[1]], title="Right")
+    assert await hass.config_entries.async_setup(first.entry_id)
+    await hass.async_block_till_done()
+    assert second.state is config_entries.ConfigEntryState.LOADED
+    owns = [own_device(hass, e.entry_id) for e in (first, second)]
+    assert all(
+        _is_linked(hass, own, device.id) or own.via_device_id == device.id
+        for own in owns
+    )

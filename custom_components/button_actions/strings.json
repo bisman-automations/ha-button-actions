@@ -50,7 +50,7 @@
       },
       "reconfigure": {
         "title": "Reconfigure remote",
-        "description": "Rename this remote, change what it supports, or pick the device it belongs to; the remote is then shown as connected via that device. Picking a Lutron Caséta Pico instead reads presses straight from Lutron; every button keeps its actions. Otherwise you'll check how its event types are used next.",
+        "description": "Rename this remote, change what it supports, or pick the device it belongs to; the two are then shown as linked devices. Picking a Lutron Caséta Pico instead reads presses straight from Lutron; every button keeps its actions. Otherwise you'll check how its event types are used next.",
         "data": {
           "name": "Name",
           "device_id": "Device",
@@ -176,7 +176,7 @@
       },
       "device": {
         "title": "Pick a device",
-        "description": "Choose the remote, button device or hub. Its buttons are found automatically, including buttons on a device connected via a hub, and the remote is shown as connected via that device.",
+        "description": "Choose the remote, button device or hub. Its buttons are found automatically, including buttons on a device connected via a hub, and the remote is shown as a linked device on it.",
         "data": {
           "device_id": "Device",
           "name": "Name"

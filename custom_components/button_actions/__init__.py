@@ -109,23 +109,58 @@ def _async_own_device(
 ) -> str:
     """Create or update the remote's own device.
 
-    It holds the remote's device triggers. When the remote is linked to a
-    Pico or button device, it shows as connected via that device, and the
-    gesture entities show on that device instead.
+    It holds the remote's device triggers. When the remote is linked to a Pico
+    or button device, Home Assistant 2026.8+ lists the two as linked devices
+    (they share that device's identifiers and connections). Older versions
+    show the remote as connected via that device instead.
     """
     registry = dr.async_get(hass)
+    own_identifier = (DOMAIN, entry.entry_id)
     # No subentry: the device is the whole remote, not one button.
     device = registry.async_get_or_create(
         config_entry_id=entry.entry_id,
-        identifiers={(DOMAIN, entry.entry_id)},
+        identifiers={own_identifier},
         name=entry.title,
         manufacturer="Button Actions",
         model="Button remote",
     )
-    if device.via_device_id != controller.linked_device_id:
-        registry.async_update_device(
-            device.id, via_device_id=controller.linked_device_id
-        )
+    linked = (
+        registry.async_get(controller.linked_device_id)
+        if controller.linked_device_id
+        else None
+    )
+    identifiers = {own_identifier}
+    connections: set[tuple[str, str]] = set()
+    via_device_id = None
+    if linked is not None and hasattr(registry, "async_get_device_by_identifier"):
+        # 2026.8+: identifiers are unique per config entry, so sharing them
+        # marks the devices as the same hardware ("Linked devices").
+        identifiers |= linked.identifiers
+        connections = set(linked.connections)
+    elif linked is not None:
+        # Older versions would merge devices that share identifiers.
+        via_device_id = linked.id
+    if (
+        device.identifiers != identifiers
+        or device.connections != connections
+        or device.via_device_id != via_device_id
+    ):
+        try:
+            registry.async_update_device(
+                device.id,
+                new_identifiers=identifiers,
+                new_connections=connections,
+                via_device_id=via_device_id,
+            )
+        except dr.DeviceCollisionError:
+            # Another remote is already linked to the same device; show this
+            # one as connected via it instead.
+            registry.async_update_device(
+                device.id,
+                new_identifiers={own_identifier},
+                new_connections=set(),
+                via_device_id=linked.id if linked else None,
+            )
     return device.id
 
 
