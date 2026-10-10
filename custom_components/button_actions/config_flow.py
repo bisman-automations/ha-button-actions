@@ -74,7 +74,6 @@ from .const import (
     button_title,
 )
 from .controller import (
-    async_set_gesture_entities_enabled,
     async_validate_sequence,
     buttons_from_entry,
     event_role_overrides,
@@ -146,14 +145,13 @@ def device_button_entities(
 ) -> list[tuple[str, str, list[str]]]:
     """A device's button event entities as (entity_id, name, event_types).
 
-    Button Actions' own gesture entities are left out, so a device a remote
-    has joined isn't mistaken for having extra buttons.
+    A hub or bridge often puts its buttons on a device connected via it (a
+    SwitchBot Hub 2's "Buttons" device under the hub), so those devices are
+    searched when the device itself has none. Button Actions' own gesture
+    entities are left out.
     """
-    registry = er.async_get(hass)
     found = []
-    for reg in er.async_entries_for_device(registry, device_id):
-        if reg.domain != "event" or reg.platform == DOMAIN:
-            continue
+    for reg in _button_event_entries(hass, device_id):
         state = hass.states.get(reg.entity_id)
         event_types = list(
             (reg.capabilities or {}).get("event_types")
@@ -175,6 +173,50 @@ def device_button_entities(
             for part in re.split(r"(\d+)", item[0])
         ],
     )
+
+
+def _button_event_entries(
+    hass: HomeAssistant, device_id: str
+) -> list[er.RegistryEntry]:
+    """Event entities on the device, or else on devices connected via it."""
+    entity_registry = er.async_get(hass)
+
+    def events_on(device: str) -> list[er.RegistryEntry]:
+        return [
+            reg
+            for reg in er.async_entries_for_device(entity_registry, device)
+            if reg.domain == "event" and reg.platform != DOMAIN
+        ]
+
+    if found := events_on(device_id):
+        return found
+    # Bridged devices belong to the same integration entry as their hub.
+    device_registry = dr.async_get(hass)
+    if (hub := device_registry.async_get(device_id)) is None:
+        return []
+    entry_ids = (
+        {hub.config_entry_id}
+        if hasattr(hub, "config_entry_id")  # Home Assistant 2026.8+
+        else hub.config_entries
+    )
+    connected = [
+        device.id
+        for entry_id in entry_ids
+        if entry_id
+        for device in dr.async_entries_for_config_entry(device_registry, entry_id)
+        if device.via_device_id == device_id
+    ]
+    return [reg for child in connected for reg in events_on(child)]
+
+
+def button_device_id(hass: HomeAssistant, entity_ids: list[str]) -> str | None:
+    """The one device all these entities belong to, if they share one."""
+    registry = er.async_get(hass)
+    devices = {
+        reg.device_id if (reg := registry.async_get(entity_id)) else None
+        for entity_id in entity_ids
+    }
+    return devices.pop() if len(devices) == 1 else None
 
 
 def _supports_long_press(event_types: list[str]) -> bool:
@@ -693,7 +735,12 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                 if not (errors := await self._async_check(subentries)):
                     self._from_device = {
                         "title": title,
-                        "device_id": device_id,
+                        # Link to the device the buttons are on, which may be
+                        # one connected via the device picked.
+                        "device_id": button_device_id(
+                            self.hass, [entity_id for entity_id, _, _ in found]
+                        )
+                        or device_id,
                         "found": found,
                         "subentries": subentries,
                     }
@@ -866,7 +913,6 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
                         SLOT_TITLES[slot] for slot in missing
                     )
                 else:
-                    self._hide_gestures_if_newly_linked(entry)
                     for sub in list(entry.subentries.values()):
                         if sub.subentry_type == SUBENTRY_BUTTON and sub.data.get(
                             CONF_ENTITIES
@@ -952,14 +998,6 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_update_and_abort(entry, **changes)
         return self.async_update_reload_and_abort(entry, **changes)
 
-    def _hide_gestures_if_newly_linked(self, entry: ConfigEntry) -> None:
-        """Disable gesture entities when a remote is first linked to a device.
-
-        The device already shows its own button events.
-        """
-        if not linked_device_id(self.hass, entry, buttons_from_entry(entry)):
-            async_set_gesture_entities_enabled(self.hass, entry, enabled=False)
-
     async def async_step_reconfigure_events(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -987,8 +1025,6 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             data.update(self._reconfigure_caps)
             if not data.get(CONF_SOURCE_DEVICE):
                 data.pop(CONF_SOURCE_DEVICE, None)
-            else:
-                self._hide_gestures_if_newly_linked(entry)
             data[CONF_EVENT_ROLES] = (
                 {t: user_input[t] for t in event_types if t in user_input}
                 if user_input is not None

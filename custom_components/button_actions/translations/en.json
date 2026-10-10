@@ -50,7 +50,7 @@
       },
       "reconfigure": {
         "title": "Reconfigure remote",
-        "description": "Rename this remote, change what it supports, or pick the device it belongs to. Its gesture events then show on that device's page. Picking a Lutron Caséta Pico instead reads presses straight from Lutron; every button keeps its actions. Otherwise you'll check how its event types are used next.",
+        "description": "Rename this remote, change what it supports, or pick the device it belongs to; the remote is then shown as connected via that device. Picking a Lutron Caséta Pico instead reads presses straight from Lutron; every button keeps its actions. Otherwise you'll check how its event types are used next.",
         "data": {
           "name": "Name",
           "device_id": "Device",
@@ -176,7 +176,7 @@
       },
       "device": {
         "title": "Pick a device",
-        "description": "Choose the remote or button device. Its buttons are found automatically, and the remote's gestures and triggers are shown on that device.",
+        "description": "Choose the remote, button device or hub. Its buttons are found automatically, including buttons on a device connected via a hub, and the remote is shown as connected via that device.",
         "data": {
           "device_id": "Device",
           "name": "Name"
@@ -207,7 +207,7 @@
       "not_a_pico": "This device doesn't have Pico buttons Button Actions can use.",
       "buttons_missing": "This Pico doesn't have every button this remote uses. Missing: {missing}.",
       "nothing_to_import": "None of the selected automations could be imported. They may already be set up, or have invalid actions.",
-      "no_buttons_on_device": "This device has no buttons Button Actions can use. Pick a device with button event entities, or a Lutron Caséta Pico.",
+      "no_buttons_on_device": "This device has no buttons Button Actions can use. Pick a device with button event entities, a hub with a buttons device connected via it, or a Lutron Caséta Pico.",
       "too_many_buttons": "This device has more than 12 buttons, which is more than Button Actions supports."
     },
     "abort": {
