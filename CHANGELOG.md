@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.4] - 2026-10-10
+
+### Changed
+
+- On Home Assistant 2026.8 and newer, a remote and the Pico or button device it's linked to list each other under **Linked devices**, instead of the remote showing as "Connected via" the device. Older versions keep "Connected via". If two remotes are linked to the same device, the second one uses "Connected via".
+
 ## [1.7.3] - 2026-10-09
 
 ### Added
@@ -162,7 +168,8 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.3...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.4...HEAD
+[1.7.4]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.0...v1.7.1
