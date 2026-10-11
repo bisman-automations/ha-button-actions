@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+> Planned release: **v1.8.0**, October 11, 2026, after testing.
+
 ### Added
 
 - An administrator-only **Button Actions** sidebar dashboard that summarizes configured remotes, buttons, assigned gestures, timing and source availability. Search the overview and open Home Assistant's existing integration configuration to manage a remote or button; action payloads and templates are not included in the dashboard API.
