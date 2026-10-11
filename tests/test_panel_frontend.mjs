@@ -205,24 +205,16 @@ test("flow popups use Home Assistant config, options, and subentry APIs", async 
   assert.ok(calls.every(([, , , headers]) => headers["HA-Frontend-Base"]));
 });
 
-test("flow forms preserve existing action data and offer entity choices", async () => {
+test("flow forms use Home Assistant's native visual selectors and preserve values", async () => {
   const panel = await createPanel();
-  panel._hass = {
-    states: {
-      "event.remote_button": {
-        attributes: { friendly_name: "Remote button" },
-      },
-    },
-    devices: {},
-    areas: {},
-  };
+  panel._hass = {};
   const form = panel._renderFlowForm({
     step_id: "reconfigure",
     data_schema: [
       {
         name: "entities",
         required: true,
-        selector: { entity: { multiple: true, domain: "event" } },
+        selector: { entity: { multiple: true, domain: ["event"] } },
         description: { suggested_value: ["event.remote_button"] },
       },
       {
@@ -234,8 +226,66 @@ test("flow forms preserve existing action data and offer entity choices", async 
       },
     ],
   });
-  assert.match(form, /<option value="event\.remote_button" selected>/);
-  assert.match(form, /\[\s*\{\s*&quot;action&quot;: &quot;light\.turn_on&quot;/);
+  assert.match(form, /<ha-form id="dashboard-flow-form"><\/ha-form>/);
+  assert.doesNotMatch(form, /textarea|data-json|JSON list/);
+  const schema = [
+    {
+      name: "entities",
+      description: { suggested_value: ["event.remote_button"] },
+    },
+    {
+      name: "short_press",
+      description: { suggested_value: [{ action: "light.turn_on" }] },
+    },
+  ];
+  assert.deepEqual(JSON.parse(JSON.stringify(panel._initialFlowData(schema))), {
+    entities: ["event.remote_button"],
+    short_press: [{ action: "light.turn_on" }],
+  });
+
+  let formElement;
+  panel.shadowRoot = {
+    querySelector: () => formElement,
+  };
+  formElement = {};
+  panel._flowInput = panel._initialFlowData(schema);
+  panel._configureFlowForm({
+    handler: "button_actions",
+    data_schema: schema,
+    errors: { short_press: "invalid_action" },
+  });
+  assert.equal(formElement.hass, panel._hass);
+  assert.deepEqual(formElement.schema, schema);
+  assert.deepEqual(JSON.parse(JSON.stringify(formElement.data)), {
+    entities: ["event.remote_button"],
+    short_press: [{ action: "light.turn_on" }],
+  });
+  assert.equal(formElement.context.domain, "button_actions");
+  assert.equal(formElement.error.short_press, "invalid_action");
+  assert.equal(formElement.computeError(null, "invalid_action"), "One or more action lists are invalid.");
+});
+
+test("visual form changes are retained as flow submission data", async () => {
+  const panel = await createPanel();
+  const listeners = {};
+  panel.shadowRoot = {
+    addEventListener(type, handler) {
+      listeners[type] = handler;
+    },
+  };
+  panel._bindRoutes();
+
+  const values = {
+    short_press: [{ action: "light.turn_on", target: { entity_id: "light.desk" } }],
+    long_press: [],
+    repeat: false,
+  };
+  listeners["value-changed"]({
+    target: { id: "dashboard-flow-form" },
+    detail: { value: values },
+  });
+
+  assert.deepEqual(JSON.parse(JSON.stringify(panel._flowInput)), values);
 });
 
 test("saving through a popup refreshes the dashboard and shows completion", async () => {

@@ -244,8 +244,11 @@ class ButtonActionsPanel extends HTMLElement {
     this.shadowRoot.addEventListener("submit", (event) => {
       if (!event.target.matches("[data-flow-form]")) return;
       event.preventDefault();
-      const userInput = this._readFlowForm(event.target);
-      if (userInput) this._submitFlow(userInput);
+      this._submitFlow(this._flowInput || {});
+    });
+    this.shadowRoot.addEventListener("value-changed", (event) => {
+      if (event.target.id !== "dashboard-flow-form") return;
+      this._flowInput = event.detail.value;
     });
     this.shadowRoot.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && this.shadowRoot.querySelector(".dialog-host")) {
@@ -301,6 +304,9 @@ class ButtonActionsPanel extends HTMLElement {
       case "dialog-close":
         this._closeDialog();
         break;
+      case "flow-continue":
+        this._submitFlow(this._flowInput || {});
+        break;
       case "flow-back":
         this._openManageDialog(data.entryId);
         break;
@@ -331,16 +337,16 @@ class ButtonActionsPanel extends HTMLElement {
       this._activeFlow.flowId = step.flow_id;
       await this._showFlowStep(step);
     } catch (error) {
-      this._renderDialogError(error);
+      if (this._activeFlow === flow) this._renderDialogError(error);
     }
   }
 
   async _submitFlow(userInput) {
     const flow = this._activeFlow;
     if (!flow?.flowId) return;
-    const form = this.shadowRoot.querySelector("[data-flow-form]");
-    const submit = form?.querySelector('[type="submit"]');
-    if (submit) submit.disabled = true;
+    const form = this.shadowRoot.querySelector("#dashboard-flow-form");
+    if (form?.reportValidity && !form.reportValidity()) return;
+    if (form) form.disabled = true;
     try {
       const step = await this._hass.callApi(
         "POST",
@@ -348,9 +354,10 @@ class ButtonActionsPanel extends HTMLElement {
         userInput,
         { "HA-Frontend-Base": `${window.location.protocol}//${window.location.host}` },
       );
+      if (this._activeFlow !== flow) return;
       await this._showFlowStep(step);
     } catch (error) {
-      this._renderDialogError(error);
+      if (this._activeFlow === flow) this._renderDialogError(error);
     }
   }
 
@@ -392,12 +399,14 @@ class ButtonActionsPanel extends HTMLElement {
       return;
     }
     if (step.type === "form") {
+      this._flowInput = this._initialFlowData(step.data_schema);
       this._renderDialog(
         this._activeFlow.title,
         this._renderFlowForm(step),
         `<button class="secondary" data-action="dialog-close">Cancel</button>
-         <button class="primary" type="submit" form="dashboard-flow-form">Continue</button>`,
+         <button class="primary" data-action="flow-continue">Continue</button>`,
       );
+      this._configureFlowForm(step);
       return;
     }
     if (step.type === "progress") {
@@ -418,7 +427,7 @@ class ButtonActionsPanel extends HTMLElement {
           if (this._activeFlow !== flow) return;
           await this._showFlowStep(next);
         } catch (error) {
-          this._renderDialogError(error);
+          if (this._activeFlow === flow) this._renderDialogError(error);
         }
       }, 500);
       return;
@@ -452,61 +461,38 @@ class ButtonActionsPanel extends HTMLElement {
   }
 
   _renderFlowForm(step) {
-    const fields = step.data_schema.map((field) => {
-      const name = field.name;
-      const selector = field.selector || {};
-      const selectorType = Object.keys(selector)[0];
-      const config = selector[selectorType] || {};
-      const suggested = field.description?.suggested_value;
-      const value = suggested ?? field.default ?? "";
-      const required = field.required ? "required" : "";
-      const label = this._fieldLabel(name);
-      let control;
-      if (selectorType === "boolean" || field.type === "boolean") {
-        control = `<input type="checkbox" name="${this._escape(name)}" ${value ? "checked" : ""}>`;
-      } else if (selectorType === "action" || selectorType === "object" || selectorType === "target") {
-        control = `<textarea class="json-input" name="${this._escape(name)}" data-json ${required} spellcheck="false">${this._escape(JSON.stringify(value || [], null, 2))}</textarea>
-          <small>Enter a JSON list of Home Assistant actions. For example: [{"action":"light.turn_on","target":{"entity_id":"light.living_room"}}]</small>`;
-      } else if (selectorType === "select" || field.type === "select") {
-        const options = config.options || field.options || [];
-        const entries = Array.isArray(options)
-          ? options.map((option) => (Array.isArray(option) ? option : [option.value ?? option, option.label ?? option]))
-          : Object.entries(options);
-        const multiple = Boolean(config.multiple);
-        const selected = multiple ? (Array.isArray(value) ? value : []) : [value];
-        control = `<select name="${this._escape(name)}" ${multiple ? "multiple" : ""} ${required}>
-          ${entries.map(([option, title]) => `<option value="${this._escape(option)}" ${selected.includes(option) ? "selected" : ""}>${this._escape(title)}</option>`).join("")}
-        </select>`;
-      } else if (selectorType === "entity" || selectorType === "device" || selectorType === "area") {
-        const options = this._selectorOptions(selectorType, config);
-        if (options.length) {
-          const multiple = selectorType === "entity" && config.multiple;
-          const selected = multiple ? (Array.isArray(value) ? value : []) : [value];
-          control = `<select name="${this._escape(name)}" ${multiple ? 'multiple size="6"' : ""} ${required}>
-            ${multiple ? "" : `<option value="">Select…</option>`}
-            ${options.map(([option, title]) => `<option value="${this._escape(option)}" ${selected.includes(option) ? "selected" : ""}>${this._escape(title)}</option>`).join("")}
-          </select>`;
-        } else {
-          const inputValue = Array.isArray(value) ? value.join(", ") : value;
-          control = selectorType === "entity" && config.multiple
-            ? `<textarea name="${this._escape(name)}" data-list ${required} placeholder="entity.one, entity.two">${this._escape(inputValue)}</textarea>`
-            : `<input name="${this._escape(name)}" type="text" value="${this._escape(inputValue)}" ${required}>`;
-        }
-      } else if (selectorType === "text" || selectorType === "template" || field.type === "string") {
-        control = `<input name="${this._escape(name)}" type="text" value="${this._escape(value)}" ${required}>`;
-      } else if (selectorType === "number" || field.type === "integer" || field.type === "float") {
-        control = `<input name="${this._escape(name)}" type="number" value="${this._escape(value)}" min="${this._escape(config.min ?? field.valueMin ?? "")}" max="${this._escape(config.max ?? field.valueMax ?? "")}" step="${this._escape(config.step ?? "any")}" ${required}>`;
-      } else if (selectorType === "duration" || field.type === "positive_time_period_dict") {
-        control = `<input name="${this._escape(name)}" type="text" value="${this._escape(typeof value === "object" ? JSON.stringify(value) : value)}" placeholder="00:00:01" ${required}>`;
-      } else {
-        control = `<textarea name="${this._escape(name)}" data-json ${required}>${this._escape(JSON.stringify(value || {}, null, 2))}</textarea>`;
-      }
-      const error = step.errors?.[name];
-      return `<label class="flow-field"><span>${this._escape(label)}${field.required ? " *" : ""}</span>${control}${error ? `<small class="field-error">${this._escape(this._errorLabel(error))}</small>` : ""}${field.description?.suffix ? `<small>${this._escape(field.description.suffix)}</small>` : ""}</label>`;
-    }).join("");
     return `<p class="dialog-description">${this._escape(this._stepDescription(step))}</p>
       ${step.errors?.base ? `<p class="field-error">${this._escape(this._errorLabel(step.errors.base))}</p>` : ""}
-      <form id="dashboard-flow-form" data-flow-form>${fields}</form>`;
+      <ha-form id="dashboard-flow-form"></ha-form>`;
+  }
+
+  _initialFlowData(schema) {
+    return Object.fromEntries(
+      schema
+        .map((field) => [
+          field.name,
+          field.description?.suggested_value ?? field.default,
+        ])
+        .filter(([, value]) => value !== undefined),
+    );
+  }
+
+  _configureFlowForm(step) {
+    const form = this.shadowRoot.querySelector("#dashboard-flow-form");
+    if (!form) {
+      this._renderDialogError(new Error("Home Assistant's visual form could not be loaded."));
+      return;
+    }
+    form.hass = this._hass;
+    form.schema = step.data_schema;
+    form.data = this._flowInput;
+    form.error = step.errors || undefined;
+    form.computeLabel = (field) => this._fieldLabel(field.name);
+    form.computeError = (_field, error) => this._errorLabel(error);
+    form.context = {
+      handler: step.handler,
+      domain: "button_actions",
+    };
   }
 
   _fieldLabel(name) {
@@ -526,50 +512,10 @@ class ButtonActionsPanel extends HTMLElement {
     return labels[name] || name.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
   }
 
-  _selectorOptions(type, config) {
-    if (type === "device") {
-      const filters = config.filter
-        ? Array.isArray(config.filter) ? config.filter : [config.filter]
-        : [];
-      const integration = config.integration;
-      return Object.entries(this._hass.devices || {})
-        .filter(([, device]) => {
-          const identifiers = device.identifiers || [];
-          const deviceIntegrations = identifiers.map(([domain]) => domain);
-          return (
-            (!integration || deviceIntegrations.includes(integration)) &&
-            filters.every(
-              (filter) =>
-                (!filter.integration || deviceIntegrations.includes(filter.integration)) &&
-                (!filter.manufacturer || device.manufacturer === filter.manufacturer) &&
-                (!filter.model || device.model === filter.model),
-            )
-          );
-        })
-        .map(([id, device]) => [id, device.name_by_user || device.name || id]);
-    }
-    if (type === "area") {
-      return Object.entries(this._hass.areas || {}).map(([id, area]) => [
-        id,
-        area.name || id,
-      ]);
-    }
-    const domains = config.domain
-      ? Array.isArray(config.domain) ? config.domain : [config.domain]
-      : null;
-    return Object.entries(this._hass.states || {})
-      .filter(([entityId]) => !domains || domains.includes(entityId.split(".")[0]))
-      .map(([entityId, state]) => [
-        entityId,
-        `${state.attributes?.friendly_name || entityId} (${entityId})`,
-      ])
-      .sort((first, second) => first[1].localeCompare(second[1]));
-  }
-
   _stepDescription(step) {
     const descriptions = {
-      actions: `Configure actions for ${step.description_placeholders?.button || "this button"}. Leave an action list empty to disable that gesture.`,
       reconfigure: `Update settings for ${step.description_placeholders?.button || "this button"}.`,
+      actions: `Set the actions for ${step.description_placeholders?.button || "this button"}.`,
       manual_buttons: `Choose the event entity for each button on ${step.description_placeholders?.remote || "this remote"}.`,
       reconfigure_events: "Choose how each event type from this remote should be interpreted.",
       device_confirm: `Confirm the ${step.description_placeholders?.count || ""} buttons found for ${step.description_placeholders?.remote || "this device"}.`,
@@ -588,38 +534,6 @@ class ButtonActionsPanel extends HTMLElement {
       nothing_to_import: "No valid blueprint automations were selected.",
     };
     return labels[error] || error.replaceAll("_", " ");
-  }
-
-  _readFlowForm(form) {
-    const values = {};
-    for (const control of form.elements) {
-      if (!control.name || control.disabled) continue;
-      if (control.type === "checkbox") {
-        values[control.name] = control.checked;
-        continue;
-      }
-      if (control.multiple) {
-        values[control.name] = Array.from(control.selectedOptions, (option) => option.value);
-        continue;
-      }
-      const value = control.value.trim();
-      if (control.hasAttribute("data-json")) {
-        try {
-          values[control.name] = value ? JSON.parse(value) : [];
-        } catch {
-          control.setCustomValidity("Enter valid JSON.");
-          control.reportValidity();
-          return null;
-        }
-      } else if (control.hasAttribute("data-list")) {
-        values[control.name] = value.split(/[,\n]+/).map((item) => item.trim()).filter(Boolean);
-      } else if (control.type === "number") {
-        values[control.name] = value === "" ? "" : Number(value);
-      } else if (value !== "") {
-        values[control.name] = value;
-      }
-    }
-    return values;
   }
 
   _openSettingsDialog() {
@@ -792,12 +706,8 @@ class ButtonActionsPanel extends HTMLElement {
       .flow-menu, .dialog-remote-list, .dialog-button-list { display: grid; gap: 8px; }
       .menu-option { width: 100%; padding: 14px 16px; text-align: left; color: var(--primary-text-color); background: var(--secondary-background-color); }
       .menu-option:hover, .dialog-remote button:hover { filter: brightness(.96); }
-      .flow-field { display: grid; gap: 7px; margin: 0 0 17px; font-size: 14px; font-weight: 500; }
-      .flow-field input, .flow-field select, .flow-field textarea { box-sizing: border-box; width: 100%; min-height: 42px; border: 1px solid var(--divider-color); border-radius: 8px; padding: 10px 12px; color: var(--primary-text-color); background: var(--card-background-color); font: inherit; }
-      .flow-field input[type="checkbox"] { justify-self: start; width: 20px; min-height: 20px; accent-color: var(--primary-color); }
-      .flow-field textarea { min-height: 90px; resize: vertical; }
-      .flow-field textarea.json-input { min-height: 150px; font-family: var(--code-font-family, monospace); font-size: 12px; }
-      .flow-field small, .dialog-remote small { color: var(--secondary-text-color); font-size: 12px; font-weight: 400; line-height: 1.45; }
+      #dashboard-flow-form { display: block; margin-top: 18px; }
+      .dialog-remote small { color: var(--secondary-text-color); font-size: 12px; font-weight: 400; line-height: 1.45; }
       .field-error { color: var(--error-color); }
       .dialog-remote { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 14px; border: 1px solid var(--divider-color); border-radius: 10px; }
       .dialog-remote > div { display: grid; gap: 4px; min-width: 0; }
