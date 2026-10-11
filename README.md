@@ -23,6 +23,7 @@ Button Actions runs a small state machine per button inside Home Assistant, so e
 
 ## Features
 
+- **Sidebar dashboard:** see all configured remotes, their buttons, assigned gestures, timing and source availability in one place. The administrator-only panel links into Home Assistant's existing configuration forms for editing; configured action bodies and templates are not exposed by the dashboard API.
 - **Gestures per button:** short press, double press, long press, and release after a long press.
 - **Any action:** each gesture uses the same action editor as scripts and automations. Target areas, devices or entities, use any service, add delays, conditions, templates.
 - **Hold to repeat:** turn on repeat for a button and its long-press action keeps running while held. Pair it with `brightness_step_pct` or `volume_up` for hold-to-dim and hold-to-raise.
@@ -118,6 +119,8 @@ If a device uses names that aren't recognized, open **Reconfigure** on the remot
 ## Configuring buttons
 
 Each remote lists its buttons right under it on the Button Actions integration page, as in the screenshot at the top. Buttons and their gesture entities are numbered top to bottom ("1 · On", "2 · Raise"…), because Home Assistant sorts these lists alphabetically and the numbers keep them in the order they sit on the remote.
+
+The **Button Actions** sidebar panel provides an overview of every remote and its buttons. Search by remote, button or event entity, check configured gestures and timing, and use **Manage remote** or **Edit** to open the existing integration configuration. The panel is administrator-only. Adding a remote or importing a blueprint continues through Home Assistant's normal integration setup flow.
 
 | Control | What it does |
 | --- | --- |

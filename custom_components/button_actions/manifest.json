@@ -3,6 +3,7 @@
   "name": "Button Actions",
   "after_dependencies": [
     "automation",
+    "frontend",
     "lutron_caseta"
   ],
   "codeowners": [

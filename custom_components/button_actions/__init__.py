@@ -10,6 +10,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CONF_ACTIONS,
@@ -29,6 +30,7 @@ from .const import (
 )
 from .controller import ButtonActionsController
 from .issues import async_delete_issues, async_track_issues
+from .panel import async_register_panel, async_setup_panel_api, async_unregister_panel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,6 +40,12 @@ type ButtonActionsConfigEntry = ConfigEntry[ButtonActionsController]
 
 # 1.0.0 kept buttons in entry.data and actions in entry.options.
 _LEGACY_BUTTONS = "buttons"
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the Button Actions dashboard API."""
+    async_setup_panel_api(hass)
+    return True
 
 
 async def async_setup_entry(
@@ -59,6 +67,7 @@ async def async_setup_entry(
     await controller.async_start()
     async_track_issues(hass, entry, controller)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    await async_register_panel(hass)
     return True
 
 
@@ -68,7 +77,10 @@ async def async_unload_entry(
     """Unload one remote."""
     await entry.runtime_data.async_stop()
     async_delete_issues(hass, entry.entry_id)
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded:
+        await async_unregister_panel(hass, excluding_entry_id=entry.entry_id)
+    return unloaded
 
 
 async def _async_update_listener(
