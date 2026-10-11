@@ -1,4 +1,16 @@
 class ButtonActionsPanel extends HTMLElement {
+  _integrationRoute() {
+    return "/config/integrations/integration/button_actions";
+  }
+
+  _addRemoteRoute() {
+    return "/config/integrations/add?domain=button_actions";
+  }
+
+  _remoteRoute(entryId) {
+    return `${this._integrationRoute()}#config_entry=${encodeURIComponent(entryId)}`;
+  }
+
   set hass(hass) {
     this._hass = hass;
     if (!this._loaded) {
@@ -96,7 +108,7 @@ class ButtonActionsPanel extends HTMLElement {
           </div>
           <div class="header-actions">
             <button class="secondary" data-action="refresh">Refresh</button>
-            <button class="primary" data-route="/config/integrations/integration/button_actions">Add or import remote</button>
+            <button class="primary" data-route="${this._addRemoteRoute()}">Add or import remote</button>
           </div>
         </header>
         <section class="summary" aria-label="Configuration summary">
@@ -111,7 +123,7 @@ class ButtonActionsPanel extends HTMLElement {
             <span class="visually-hidden">Search remotes and buttons</span>
             <input type="search" placeholder="Search remotes, buttons, or entities" autocomplete="off">
           </label>
-          <button class="secondary" data-route="/config/integrations/integration/button_actions">
+          <button class="secondary" data-route="${this._integrationRoute()}">
             Integration settings
           </button>
         </div>
@@ -123,7 +135,7 @@ class ButtonActionsPanel extends HTMLElement {
                  <div class="message">
                    <h2>No remotes configured yet</h2>
                    <p>Add a device, import a Pico blueprint automation, or create a remote by hand.</p>
-                   <button class="primary" data-route="/config/integrations/integration/button_actions">Set up a remote</button>
+                   <button class="primary" data-route="${this._addRemoteRoute()}">Set up a remote</button>
                  </div>
                </ha-card>`
         }
@@ -135,7 +147,7 @@ class ButtonActionsPanel extends HTMLElement {
 
   _remoteCard(remote) {
     const title = this._escape(remote.title);
-    const route = `/config/integrations/integration/button_actions#config_entry=${encodeURIComponent(remote.entry_id)}`;
+    const route = `/config/integrations#config_entry=${encodeURIComponent(remote.entry_id)}`;
     const healthy = remote.state === "loaded";
     const source =
       remote.source === "lutron_caseta" ? "Lutron Caséta" : "Event entities";
@@ -171,7 +183,7 @@ class ButtonActionsPanel extends HTMLElement {
   }
 
   _buttonRow(remote, button) {
-    const route = `/config/integrations/integration/button_actions#config_entry=${encodeURIComponent(remote.entry_id)}`;
+    const route = this._remoteRoute(remote.entry_id);
     const gestures = button.gestures.length
       ? button.gestures
           .map((gesture) => `<span class="chip">${this._escape(gesture.replaceAll("_", " "))}</span>`)
