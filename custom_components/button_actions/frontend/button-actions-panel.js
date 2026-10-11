@@ -37,7 +37,14 @@ class ButtonActionsPanel extends HTMLElement {
   }
 
   _route(path) {
-    this._hass.navigate(path);
+    const from = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.history.pushState({ from }, "", path);
+    const event = new Event("location-changed", {
+      bubbles: true,
+      composed: true,
+    });
+    event.detail = { replace: false };
+    window.dispatchEvent(event);
   }
 
   _renderLoading() {
@@ -234,7 +241,11 @@ class ButtonActionsPanel extends HTMLElement {
     if (this._routesBound) return;
     this._routesBound = true;
     this.shadowRoot.addEventListener("click", (event) => {
-      const control = event.target.closest("[data-route], [data-action]");
+      const control = event.composedPath().find(
+        (target) =>
+          target instanceof HTMLElement &&
+          target.matches("[data-route], [data-action]"),
+      );
       if (!control) return;
       event.preventDefault();
       if (control.dataset.route) {
