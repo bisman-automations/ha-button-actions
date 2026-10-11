@@ -120,7 +120,7 @@ If a device uses names that aren't recognized, open **Reconfigure** on the remot
 
 Each remote lists its buttons right under it on the Button Actions integration page, as in the screenshot at the top. Buttons and their gesture entities are numbered top to bottom ("1 · On", "2 · Raise"…), because Home Assistant sorts these lists alphabetically and the numbers keep them in the order they sit on the remote.
 
-The **Button Actions** sidebar panel provides an overview of every remote and its buttons. Search by remote, button or event entity, check configured gestures and timing, and use **Manage remote** or **Edit** to open the existing integration configuration. The panel is administrator-only. Adding a remote or importing a blueprint continues through Home Assistant's normal integration setup flow.
+The **Button Actions** sidebar panel provides an overview of every remote and its buttons. Search by remote, button or event entity; check whether a remote is active, which gestures have actions, timing, and whether source entities are available. **Manage remote** and **Edit** open the existing integration configuration. The panel is administrator-only, and its read-only dashboard API does not return action bodies or templates. Add or import a remote through the panel to continue in Home Assistant's existing setup flow.
 
 | Control | What it does |
 | --- | --- |
