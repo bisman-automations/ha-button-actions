@@ -5,7 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.8.0] - 2026-10-11
+
+### Added
+
+- An administrator-only **Button Actions** sidebar dashboard that summarizes configured remotes, buttons, assigned gestures, timing and source availability.
+- Dashboard popups for creating or importing remotes, updating remote timing, managing remote settings, and editing each button's event entities, actions and gesture options through Home Assistant's existing authenticated config flows and native visual action editor.
+- The dashboard summary API omits action bodies and templates; button editors load current values through their existing config flow.
 
 ## [1.7.4] - 2026-10-10
 

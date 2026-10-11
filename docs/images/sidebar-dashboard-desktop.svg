@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="940" viewBox="0 0 1440 940" role="img" aria-labelledby="title description">
+  <title id="title">Button Actions dashboard desktop mockup</title>
+  <desc id="description">Illustrative Home Assistant desktop dashboard showing remote summaries, timing, searchable buttons, gesture actions, and source availability.</desc>
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="9" flood-color="#17212b" flood-opacity=".08"/>
+    </filter>
+    <style>
+      text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #202a35; }
+      .muted { fill: #6b7785; }
+      .tiny { font-size: 12px; }
+      .small { font-size: 14px; }
+      .label { font-size: 13px; font-weight: 600; }
+      .title { font-size: 32px; font-weight: 650; letter-spacing: -.6px; }
+      .card { fill: #fff; stroke: #e5e9ed; stroke-width: 1; }
+    </style>
+  </defs>
+  <rect width="1440" height="940" fill="#f4f6f8"/>
+  <rect width="236" height="940" fill="#fff"/>
+  <path d="M236 0v940" stroke="#e2e6ea"/>
+  <circle cx="35" cy="36" r="15" fill="#03a9f4"/>
+  <path d="M33 27h4v8h-4zm-7 12 3-3 6 6 6-6 3 3-9 9z" fill="#fff" opacity=".95"/>
+  <text x="61" y="42" font-size="17" font-weight="650">Home Assistant</text>
+  <rect x="16" y="78" width="204" height="38" rx="9" fill="#f0f2f4"/>
+  <circle cx="38" cy="97" r="8" fill="none" stroke="#73808c" stroke-width="1.8"/>
+  <path d="m44 103 6 6" stroke="#73808c" stroke-width="1.8"/>
+  <text x="61" y="102" class="small muted">Search</text>
+  <text x="24" y="151" class="tiny muted" font-weight="700" letter-spacing="1">OVERVIEW</text>
+  <g class="small muted">
+    <circle cx="37" cy="183" r="8" fill="none" stroke="#7a8793" stroke-width="1.8"/>
+    <path d="M31 183h12m-6-6v12" stroke="#7a8793" stroke-width="1.5"/>
+    <text x="59" y="188">Overview</text>
+    <path d="M31 222h13v13H31zM34 219h13v13" fill="none" stroke="#7a8793" stroke-width="1.6"/>
+    <text x="59" y="232">Energy</text>
+    <path d="M32 267h12m-6-7v14m-5-11 10 8" fill="none" stroke="#7a8793" stroke-width="1.6"/>
+    <text x="59" y="276">History</text>
+  </g>
+  <text x="24" y="327" class="tiny muted" font-weight="700" letter-spacing="1">YOUR APPS</text>
+  <rect x="8" y="343" width="220" height="43" rx="9" fill="#e9f5fb"/>
+  <circle cx="38" cy="364" r="12" fill="#03a9f4"/>
+  <path d="M38 357v8m-5 0a5 5 0 1 0 10 0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  <text x="59" y="369" font-size="14" font-weight="650" fill="#1679a8">Button Actions</text>
+  <g class="small muted">
+    <circle cx="38" cy="414" r="9" fill="none" stroke="#7a8793" stroke-width="1.6"/>
+    <path d="M33 414h10m-5-5v10" stroke="#7a8793" stroke-width="1.4"/>
+    <text x="59" y="419">Settings</text>
+    <path d="M30 456h16v14H30zm4-4h8" fill="none" stroke="#7a8793" stroke-width="1.6"/>
+    <text x="59" y="468">Devices &amp; services</text>
+  </g>
+  <rect x="236" width="1204" height="64" fill="#fff"/>
+  <path d="M236 64h1204" stroke="#e2e6ea"/>
+  <path d="M270 31h18m-9-9v18" stroke="#596673" stroke-width="1.8"/>
+  <text x="314" y="37" class="small muted">Button Actions</text>
+  <circle cx="1371" cy="32" r="16" fill="#e8eef2"/>
+  <circle cx="1371" cy="28" r="5" fill="#75828e"/>
+  <path d="M1362 42c1-7 17-7 18 0" fill="#75828e"/>
+  <text x="286" y="123" class="tiny muted" font-weight="700" letter-spacing="1.5">REMOTE CONFIGURATION</text>
+  <text x="286" y="164" class="title">Button Actions</text>
+  <text x="286" y="193" class="small muted">See every remote and button in one place. Edit actions and timing using Home Assistant’s built-in configuration forms.</text>
+  <rect x="1108" y="135" width="118" height="42" rx="9" fill="#eef2f5"/>
+  <text x="1167" y="161" text-anchor="middle" class="label" fill="#1679a8">↻  Refresh</text>
+  <rect x="1237" y="135" width="172" height="42" rx="9" fill="#03a9f4"/>
+  <text x="1323" y="161" text-anchor="middle" class="label" fill="#fff">＋  Add or import</text>
+  <g filter="url(#shadow)">
+    <rect x="286" y="222" width="348" height="94" rx="13" class="card"/>
+    <rect x="650" y="222" width="348" height="94" rx="13" class="card"/>
+    <rect x="1014" y="222" width="395" height="94" rx="13" class="card"/>
+  </g>
+  <text x="309" y="258" font-size="29" font-weight="700">3</text>
+  <text x="354" y="256" class="small muted">remotes</text>
+  <text x="309" y="287" class="tiny muted">Configured in Button Actions</text>
+  <text x="673" y="258" font-size="29" font-weight="700">14</text>
+  <text x="727" y="256" class="small muted">buttons</text>
+  <text x="673" y="287" class="tiny muted">Across all configured remotes</text>
+  <text x="1037" y="258" font-size="29" font-weight="700" fill="#2e7d55">0</text>
+  <text x="1082" y="256" class="small muted">buttons with unavailable sources</text>
+  <text x="1037" y="287" class="tiny muted">All event sources are available</text>
+  <rect x="286" y="337" width="726" height="45" rx="9" fill="#fff" stroke="#dfe4e8"/>
+  <circle cx="310" cy="359" r="7" fill="none" stroke="#84909a" stroke-width="1.6"/>
+  <path d="m315 364 5 5" stroke="#84909a" stroke-width="1.6"/>
+  <text x="333" y="364" class="small muted">Search remotes, buttons, or entities</text>
+  <rect x="1196" y="337" width="213" height="45" rx="9" fill="#eef2f5"/>
+  <text x="1302" y="364" text-anchor="middle" class="label" fill="#1679a8">Integration settings</text>
+  <g filter="url(#shadow)">
+    <rect x="286" y="403" width="1123" height="303" rx="13" class="card"/>
+  </g>
+  <rect x="286" y="403" width="1123" height="82" rx="13" fill="#fff"/>
+  <rect x="309" y="421" width="46" height="46" rx="12" fill="#e9f5fb"/>
+  <path d="M326 432a7 7 0 0 0-7 7v11h5v-9h4v9h5v-9h4v9h5v-11a7 7 0 0 0-7-7z" fill="#03a9f4"/>
+  <text x="370" y="444" font-size="18" font-weight="650">Living Room Pico</text>
+  <text x="370" y="464" class="tiny muted">Lutron Caséta  ·  5 buttons</text>
+  <circle cx="1219" cy="444" r="4" fill="#42a66b"/>
+  <text x="1231" y="449" class="tiny" fill="#2e7d55" font-weight="650">Active</text>
+  <rect x="1290" y="424" width="94" height="38" rx="8" fill="#eef2f5"/>
+  <text x="1337" y="448" text-anchor="middle" class="tiny" fill="#1679a8" font-weight="650">Manage</text>
+  <rect x="286" y="485" width="1123" height="40" fill="#f6f8fa"/>
+  <text x="309" y="510" class="tiny muted">Double press supported</text>
+  <text x="492" y="510" class="tiny muted">Long press supported</text>
+  <text x="664" y="510" class="tiny muted">Double 300 ms</text>
+  <text x="790" y="510" class="tiny muted">Hold 600 ms</text>
+  <text x="900" y="510" class="tiny muted">Repeat 400 ms</text>
+  <path d="M286 525h1123" stroke="#e7ebee"/>
+  <circle cx="330" cy="563" r="17" fill="#f0f3f6"/>
+  <path d="M330 553v12m-7 0a7 7 0 1 0 14 0" fill="none" stroke="#4d6472" stroke-width="2" stroke-linecap="round"/>
+  <text x="360" y="560" class="label">1 · On button</text>
+  <text x="360" y="579" class="tiny muted">Read directly from Lutron</text>
+  <rect x="360" y="590" width="86" height="21" rx="11" fill="#eef2f5"/>
+  <text x="403" y="605" text-anchor="middle" font-size="11" fill="#657380">short press</text>
+  <rect x="452" y="590" width="91" height="21" rx="11" fill="#eef2f5"/>
+  <text x="497" y="605" text-anchor="middle" font-size="11" fill="#657380">double press</text>
+  <rect x="549" y="590" width="86" height="21" rx="11" fill="#eef2f5"/>
+  <text x="592" y="605" text-anchor="middle" font-size="11" fill="#657380">long press</text>
+  <text x="1365" y="567" text-anchor="end" class="small" fill="#1679a8">Edit</text>
+  <path d="M309 628h1077" stroke="#e7ebee"/>
+  <circle cx="330" cy="664" r="17" fill="#f0f3f6"/>
+  <path d="m330 652 4 8 9 1-7 6 2 9-8-5-8 5 2-9-7-6 9-1z" fill="none" stroke="#4d6472" stroke-width="1.7" stroke-linejoin="round"/>
+  <text x="360" y="661" class="label">2 · Raise button</text>
+  <text x="360" y="680" class="tiny muted">Read directly from Lutron</text>
+  <rect x="360" y="688" width="82" height="18" rx="9" fill="#eef2f5"/>
+  <text x="401" y="701" text-anchor="middle" font-size="10" fill="#657380">short press</text>
+  <rect x="448" y="688" width="82" height="18" rx="9" fill="#e9f5fb"/>
+  <text x="489" y="701" text-anchor="middle" font-size="10" fill="#1679a8">long press</text>
+  <text x="1365" y="668" text-anchor="end" class="small" fill="#1679a8">Edit</text>
+  <text x="286" y="756" class="small muted">Illustrative desktop preview of the administrator-only sidebar dashboard</text>
+</svg>

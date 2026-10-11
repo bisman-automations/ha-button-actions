@@ -17,12 +17,25 @@ The usual way to get click, double-click and hold out of a Pico is a blueprint a
 
 Button Actions runs a small state machine per button inside Home Assistant, so every button is independent, timing is tight, and each remote is just a device you configure.
 
+## Dashboard preview
+
+These illustrative mockups show the administrator-only sidebar dashboard on desktop and mobile. They are previews of the interface, not screenshots from a live Home Assistant installation.
+
+<p align="center">
+  <img src="docs/images/sidebar-dashboard-desktop.svg" alt="Illustrative desktop mockup of the Button Actions dashboard, with remote summaries, timing, buttons, gestures, and edit links" width="800">
+</p>
+
+<p align="center">
+  <img src="docs/images/sidebar-dashboard-mobile.svg" alt="Illustrative mobile mockup of the Button Actions dashboard showing responsive remote and button cards" width="340">
+</p>
+
 <p align="center">
   <img src="docs/images/integration-page.png" alt="The Button Actions integration page, with each remote's buttons listed under it" width="640">
 </p>
 
 ## Features
 
+- **Sidebar dashboard:** see all configured remotes, their buttons, assigned gestures, timing and source availability in one place. The administrator-only panel links into Home Assistant's existing configuration forms for editing; configured action bodies and templates are not exposed by the dashboard API.
 - **Gestures per button:** short press, double press, long press, and release after a long press.
 - **Any action:** each gesture uses the same action editor as scripts and automations. Target areas, devices or entities, use any service, add delays, conditions, templates.
 - **Hold to repeat:** turn on repeat for a button and its long-press action keeps running while held. Pair it with `brightness_step_pct` or `volume_up` for hold-to-dim and hold-to-raise.
@@ -118,6 +131,8 @@ If a device uses names that aren't recognized, open **Reconfigure** on the remot
 ## Configuring buttons
 
 Each remote lists its buttons right under it on the Button Actions integration page, as in the screenshot at the top. Buttons and their gesture entities are numbered top to bottom ("1 · On", "2 · Raise"…), because Home Assistant sorts these lists alphabetically and the numbers keep them in the order they sit on the remote.
+
+The **Button Actions** sidebar panel provides an overview of every remote and its buttons. Search by remote, button or event entity; check whether a remote is active, which gestures have actions, timing, and whether source entities are available. **Add or import remote** opens the setup flow in a dashboard popup. **Integration settings** opens a popup to choose a remote and update its timing. **Manage remote** opens a popup with remote configuration, timing, add-button, and button-edit actions. **Edit** on any button opens that button's configuration flow in the popup, including its event entities, actions, and gesture options. Button actions use Home Assistant's native visual action editor—no YAML or JSON editing is required. The panel is administrator-only; its summary API omits action bodies and templates, which are loaded only by Home Assistant's authenticated button-edit flow.
 
 | Control | What it does |
 | --- | --- |
