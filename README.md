@@ -6,6 +6,8 @@
 
 Map short, double and long presses on Lutron Pico and other button remotes to any Home Assistant action, configured entirely in the UI. No automations needed.
 
+> **Upcoming release:** v1.8.0 is planned for release today, October 11, 2026, after testing.
+
 ## Why
 
 The usual way to get click, double-click and hold out of a Pico is a blueprint automation. That works, but:
