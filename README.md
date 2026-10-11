@@ -17,6 +17,18 @@ The usual way to get click, double-click and hold out of a Pico is a blueprint a
 
 Button Actions runs a small state machine per button inside Home Assistant, so every button is independent, timing is tight, and each remote is just a device you configure.
 
+## Dashboard preview
+
+These illustrative mockups show the administrator-only sidebar dashboard on desktop and mobile. They are previews of the interface, not screenshots from a live Home Assistant installation.
+
+<p align="center">
+  <img src="docs/images/sidebar-dashboard-desktop.svg" alt="Illustrative desktop mockup of the Button Actions dashboard, with remote summaries, timing, buttons, gestures, and edit links" width="800">
+</p>
+
+<p align="center">
+  <img src="docs/images/sidebar-dashboard-mobile.svg" alt="Illustrative mobile mockup of the Button Actions dashboard showing responsive remote and button cards" width="340">
+</p>
+
 <p align="center">
   <img src="docs/images/integration-page.png" alt="The Button Actions integration page, with each remote's buttons listed under it" width="640">
 </p>
