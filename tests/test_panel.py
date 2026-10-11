@@ -68,7 +68,7 @@ async def test_panel_config_summarizes_remote_without_action_payloads(
     hass: HomeAssistant,
 ) -> None:
     """The panel lists useful configuration while keeping action bodies private."""
-    _remote(hass)
+    entry = _remote(hass)
 
     result = _panel_config(hass)
 
@@ -84,6 +84,7 @@ async def test_panel_config_summarizes_remote_without_action_payloads(
     assert remote["buttons"] == [
         {
             "slot": "button_1",
+            "subentry_id": next(iter(entry.subentries)),
             "title": "Button 1",
             "entities": ["event.office_remote_button"],
             "gestures": ["short_press", "long_press"],

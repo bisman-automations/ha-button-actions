@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- An administrator-only **Button Actions** sidebar dashboard that summarizes configured remotes, buttons, assigned gestures, timing and source availability. Search the overview and open Home Assistant's existing integration configuration to manage a remote or button; action payloads and templates are not included in the dashboard API.
-- Direct links from the dashboard to add or import remotes through the existing Home Assistant config flow, preserving the current setup, options and button subentry flows.
+- An administrator-only **Button Actions** sidebar dashboard that summarizes configured remotes, buttons, assigned gestures, timing and source availability.
+- Dashboard popups for creating or importing remotes, updating remote timing, managing remote settings, and editing each button's event entities, actions and gesture options through Home Assistant's existing authenticated config flows.
+- The dashboard summary API omits action bodies and templates; button editors load current values through their existing config flow.
 
 ## [1.7.4] - 2026-10-10
 

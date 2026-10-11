@@ -94,6 +94,7 @@ def _panel_config(hass: HomeAssistant) -> dict[str, list[dict[str, Any]]]:
             buttons.append(
                 {
                     "slot": button.slot,
+                    "subentry_id": subentry.subentry_id,
                     "title": subentry.title,
                     "entities": button.entities,
                     "gestures": [

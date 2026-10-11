@@ -1,16 +1,4 @@
 class ButtonActionsPanel extends HTMLElement {
-  _integrationRoute() {
-    return "/config/integrations/integration/button_actions";
-  }
-
-  _addRemoteRoute() {
-    return "/config/integrations/add?domain=button_actions";
-  }
-
-  _remoteRoute(entryId) {
-    return `${this._integrationRoute()}#config_entry=${encodeURIComponent(entryId)}`;
-  }
-
   set hass(hass) {
     this._hass = hass;
     if (!this._loaded) {
@@ -48,17 +36,6 @@ class ButtonActionsPanel extends HTMLElement {
     });
   }
 
-  _route(path) {
-    const from = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    window.history.pushState({ from }, "", path);
-    const event = new Event("location-changed", {
-      bubbles: true,
-      composed: true,
-    });
-    event.detail = { replace: false };
-    window.dispatchEvent(event);
-  }
-
   _renderLoading() {
     this.shadowRoot.innerHTML = `
       <style>${this._styles()}</style>
@@ -73,8 +50,8 @@ class ButtonActionsPanel extends HTMLElement {
           <div class="message error">
             <h2>Dashboard unavailable</h2>
             <p>${this._escape(error?.message || "Home Assistant could not load the remote configuration.")}</p>
-            <button class="secondary" data-route="/config/integrations/integration/button_actions">
-              Open integration settings
+            <button class="secondary" data-action="integration-settings">
+              Integration settings
             </button>
           </div>
         </ha-card>
@@ -104,11 +81,11 @@ class ButtonActionsPanel extends HTMLElement {
           <div>
             <p class="eyebrow">REMOTE CONFIGURATION</p>
             <h1>Button Actions</h1>
-            <p class="intro">See every remote and button in one place. Edit actions and timing using Home Assistant’s built-in configuration forms.</p>
+            <p class="intro">See every remote and button in one place. Configure remotes, timing, and button actions in focused popups without leaving this dashboard.</p>
           </div>
           <div class="header-actions">
             <button class="secondary" data-action="refresh">Refresh</button>
-            <button class="primary" data-route="${this._addRemoteRoute()}">Add or import remote</button>
+            <button class="primary" data-action="add-remote">Add or import remote</button>
           </div>
         </header>
         <section class="summary" aria-label="Configuration summary">
@@ -123,7 +100,7 @@ class ButtonActionsPanel extends HTMLElement {
             <span class="visually-hidden">Search remotes and buttons</span>
             <input type="search" placeholder="Search remotes, buttons, or entities" autocomplete="off">
           </label>
-          <button class="secondary" data-route="${this._integrationRoute()}">
+          <button class="secondary" data-action="integration-settings">
             Integration settings
           </button>
         </div>
@@ -135,7 +112,7 @@ class ButtonActionsPanel extends HTMLElement {
                  <div class="message">
                    <h2>No remotes configured yet</h2>
                    <p>Add a device, import a Pico blueprint automation, or create a remote by hand.</p>
-                   <button class="primary" data-route="${this._addRemoteRoute()}">Set up a remote</button>
+                   <button class="primary" data-action="add-remote">Set up a remote</button>
                  </div>
                </ha-card>`
         }
@@ -147,7 +124,6 @@ class ButtonActionsPanel extends HTMLElement {
 
   _remoteCard(remote) {
     const title = this._escape(remote.title);
-    const route = `/config/integrations#config_entry=${encodeURIComponent(remote.entry_id)}`;
     const healthy = remote.state === "loaded";
     const source =
       remote.source === "lutron_caseta" ? "Lutron Caséta" : "Event entities";
@@ -168,7 +144,7 @@ class ButtonActionsPanel extends HTMLElement {
           </div>
           <div class="remote-actions">
             <span class="status ${healthy ? "healthy" : "attention"}">${healthy ? "Active" : this._escape(remote.state.replaceAll("_", " "))}</span>
-            <button class="secondary" data-route="${this._escape(route)}">Manage remote</button>
+            <button class="secondary" data-action="manage-remote" data-entry-id="${this._escape(remote.entry_id)}">Manage remote</button>
           </div>
         </div>
         <div class="remote-details">
@@ -183,7 +159,6 @@ class ButtonActionsPanel extends HTMLElement {
   }
 
   _buttonRow(remote, button) {
-    const route = this._remoteRoute(remote.entry_id);
     const gestures = button.gestures.length
       ? button.gestures
           .map((gesture) => `<span class="chip">${this._escape(gesture.replaceAll("_", " "))}</span>`)
@@ -207,7 +182,7 @@ class ButtonActionsPanel extends HTMLElement {
         </div>
         <div class="button-actions">
           ${button.available ? "" : '<span class="status attention">Source unavailable</span>'}
-          <button class="text-button" data-route="${this._escape(route)}" aria-label="Manage ${this._escape(button.title)}">Edit</button>
+          <button class="text-button" data-action="edit-button" data-entry-id="${this._escape(remote.entry_id)}" data-subentry-id="${this._escape(button.subentry_id)}" aria-label="Edit ${this._escape(button.title)}">Edit</button>
         </div>
       </div>`;
   }
@@ -256,16 +231,490 @@ class ButtonActionsPanel extends HTMLElement {
       const control = event.composedPath().find(
         (target) =>
           target instanceof HTMLElement &&
-          target.matches("[data-route], [data-action]"),
+          target.matches("[data-action], [data-menu-option]"),
       );
       if (!control) return;
       event.preventDefault();
-      if (control.dataset.route) {
-        this._route(control.dataset.route);
-      } else if (control.dataset.action === "refresh") {
-        this._load();
+      if (control.dataset.menuOption) {
+        this._submitFlow({ next_step_id: control.dataset.menuOption });
+        return;
+      }
+      this._handleAction(control.dataset.action, control.dataset);
+    });
+    this.shadowRoot.addEventListener("submit", (event) => {
+      if (!event.target.matches("[data-flow-form]")) return;
+      event.preventDefault();
+      const userInput = this._readFlowForm(event.target);
+      if (userInput) this._submitFlow(userInput);
+    });
+    this.shadowRoot.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && this.shadowRoot.querySelector(".dialog-host")) {
+        this._closeDialog();
       }
     });
+  }
+
+  _handleAction(action, data = {}) {
+    switch (action) {
+      case "refresh":
+        this._load();
+        break;
+      case "add-remote":
+        this._startFlow("config", "Add or import remote", {
+          handler: "button_actions",
+        });
+        break;
+      case "integration-settings":
+        this._openSettingsDialog();
+        break;
+      case "manage-remote":
+        this._openManageDialog(data.entryId);
+        break;
+      case "edit-button":
+        this._startFlow("subentry", "Edit button", {
+          handler: [data.entryId, "button"],
+          subentry_id: data.subentryId,
+        });
+        break;
+      case "manage-configure-remote":
+        this._startFlow("config", "Manage remote", {
+          handler: "button_actions",
+          entry_id: data.entryId,
+        });
+        break;
+      case "manage-timing":
+      case "settings-timing":
+        this._startFlow("options", "Integration settings", {
+          handler: data.entryId,
+        });
+        break;
+      case "manage-add-button":
+        this._startFlow("subentry", "Add button", {
+          handler: [data.entryId, "button"],
+        });
+        break;
+      case "settings-select-remote":
+        this._startFlow("options", "Remote timing settings", {
+          handler: data.entryId,
+        });
+        break;
+      case "dialog-close":
+        this._closeDialog();
+        break;
+      case "flow-back":
+        this._openManageDialog(data.entryId);
+        break;
+    }
+  }
+
+  _apiPath(kind, flowId) {
+    const paths = {
+      config: "config/config_entries/flow",
+      options: "config/config_entries/options/flow",
+      subentry: "config/config_entries/subentries/flow",
+    };
+    return `${paths[kind]}${flowId ? `/${encodeURIComponent(flowId)}` : ""}`;
+  }
+
+  async _startFlow(kind, title, payload) {
+    const flow = { kind, title, flowId: null };
+    this._activeFlow = flow;
+    this._renderDialog(title, `<p class="dialog-loading">Opening configuration…</p>`);
+    try {
+      const step = await this._hass.callApi(
+        "POST",
+        this._apiPath(kind),
+        payload,
+        { "HA-Frontend-Base": `${window.location.protocol}//${window.location.host}` },
+      );
+      if (this._activeFlow !== flow) return;
+      this._activeFlow.flowId = step.flow_id;
+      await this._showFlowStep(step);
+    } catch (error) {
+      this._renderDialogError(error);
+    }
+  }
+
+  async _submitFlow(userInput) {
+    const flow = this._activeFlow;
+    if (!flow?.flowId) return;
+    const form = this.shadowRoot.querySelector("[data-flow-form]");
+    const submit = form?.querySelector('[type="submit"]');
+    if (submit) submit.disabled = true;
+    try {
+      const step = await this._hass.callApi(
+        "POST",
+        this._apiPath(flow.kind, flow.flowId),
+        userInput,
+        { "HA-Frontend-Base": `${window.location.protocol}//${window.location.host}` },
+      );
+      await this._showFlowStep(step);
+    } catch (error) {
+      this._renderDialogError(error);
+    }
+  }
+
+  async _showFlowStep(step) {
+    if (step.type === "create_entry") {
+      this._activeFlow = null;
+      await this._load();
+      this._renderDialog(
+        "Configuration saved",
+        `<p class="dialog-success">${this._escape(step.title || "Your changes have been saved.")}</p>`,
+        `<button class="primary" data-action="dialog-close">Done</button>`,
+      );
+      return;
+    }
+    if (step.type === "abort") {
+      this._activeFlow = null;
+      this._renderDialog(
+        "Configuration not changed",
+        `<p>${this._escape(step.reason.replaceAll("_", " "))}</p>`,
+        `<button class="primary" data-action="dialog-close">Close</button>`,
+      );
+      return;
+    }
+    if (step.type === "menu") {
+      const options = Array.isArray(step.menu_options)
+        ? step.menu_options.map((option) => [option, this._menuLabel(option)])
+        : Object.entries(step.menu_options);
+      this._renderDialog(
+        this._activeFlow.title,
+        `<p class="dialog-description">Choose how you want to continue.</p>
+         <div class="flow-menu">${options
+           .map(
+             ([option, label]) =>
+               `<button class="menu-option" data-menu-option="${this._escape(option)}">${this._escape(label)}</button>`,
+           )
+           .join("")}</div>`,
+        `<button class="secondary" data-action="dialog-close">Cancel</button>`,
+      );
+      return;
+    }
+    if (step.type === "form") {
+      this._renderDialog(
+        this._activeFlow.title,
+        this._renderFlowForm(step),
+        `<button class="secondary" data-action="dialog-close">Cancel</button>
+         <button class="primary" type="submit" form="dashboard-flow-form">Continue</button>`,
+      );
+      return;
+    }
+    if (step.type === "progress") {
+      this._renderDialog(
+        this._activeFlow.title,
+        `<p class="dialog-loading">Working…</p>`,
+      );
+      window.setTimeout(async () => {
+        const flow = this._activeFlow;
+        if (!flow?.flowId) return;
+        try {
+          const next = await this._hass.callApi(
+            "GET",
+            this._apiPath(flow.kind, flow.flowId),
+            undefined,
+            { "HA-Frontend-Base": `${window.location.protocol}//${window.location.host}` },
+          );
+          if (this._activeFlow !== flow) return;
+          await this._showFlowStep(next);
+        } catch (error) {
+          this._renderDialogError(error);
+        }
+      }, 500);
+      return;
+    }
+    if (step.type === "external") {
+      this._renderDialog(
+        this._activeFlow.title,
+        `<p>Continue setup in the external service.</p>
+         <a class="primary button-link" href="${this._escape(step.url)}" target="_blank" rel="noopener noreferrer">Open setup</a>`,
+        `<button class="secondary" data-action="dialog-close">Close</button>`,
+      );
+      return;
+    }
+    this._renderDialogError(new Error(`Unsupported configuration step: ${step.type}`));
+  }
+
+  _menuLabel(option) {
+    const labels = {
+      device: "Add from a device",
+      import_blueprint: "Import a Pico blueprint",
+      import_all: "Import all Pico blueprints",
+      duplicate: "Duplicate an existing remote",
+      manual: "Create a remote manually",
+      import_pico: "Read presses directly from the Pico",
+      import_entities: "Use event entities",
+      duplicate_pico: "Read presses directly from the Pico",
+      duplicate_entities: "Use event entities",
+      duplicate_numbered: "Create numbered buttons",
+    };
+    return labels[option] || option.replaceAll("_", " ");
+  }
+
+  _renderFlowForm(step) {
+    const fields = step.data_schema.map((field) => {
+      const name = field.name;
+      const selector = field.selector || {};
+      const selectorType = Object.keys(selector)[0];
+      const config = selector[selectorType] || {};
+      const suggested = field.description?.suggested_value;
+      const value = suggested ?? field.default ?? "";
+      const required = field.required ? "required" : "";
+      const label = this._fieldLabel(name);
+      let control;
+      if (selectorType === "boolean" || field.type === "boolean") {
+        control = `<input type="checkbox" name="${this._escape(name)}" ${value ? "checked" : ""}>`;
+      } else if (selectorType === "action" || selectorType === "object" || selectorType === "target") {
+        control = `<textarea class="json-input" name="${this._escape(name)}" data-json ${required} spellcheck="false">${this._escape(JSON.stringify(value || [], null, 2))}</textarea>
+          <small>Enter a JSON list of Home Assistant actions. For example: [{"action":"light.turn_on","target":{"entity_id":"light.living_room"}}]</small>`;
+      } else if (selectorType === "select" || field.type === "select") {
+        const options = config.options || field.options || [];
+        const entries = Array.isArray(options)
+          ? options.map((option) => (Array.isArray(option) ? option : [option.value ?? option, option.label ?? option]))
+          : Object.entries(options);
+        const multiple = Boolean(config.multiple);
+        const selected = multiple ? (Array.isArray(value) ? value : []) : [value];
+        control = `<select name="${this._escape(name)}" ${multiple ? "multiple" : ""} ${required}>
+          ${entries.map(([option, title]) => `<option value="${this._escape(option)}" ${selected.includes(option) ? "selected" : ""}>${this._escape(title)}</option>`).join("")}
+        </select>`;
+      } else if (selectorType === "entity" || selectorType === "device" || selectorType === "area") {
+        const options = this._selectorOptions(selectorType, config);
+        if (options.length) {
+          const multiple = selectorType === "entity" && config.multiple;
+          const selected = multiple ? (Array.isArray(value) ? value : []) : [value];
+          control = `<select name="${this._escape(name)}" ${multiple ? 'multiple size="6"' : ""} ${required}>
+            ${multiple ? "" : `<option value="">Select…</option>`}
+            ${options.map(([option, title]) => `<option value="${this._escape(option)}" ${selected.includes(option) ? "selected" : ""}>${this._escape(title)}</option>`).join("")}
+          </select>`;
+        } else {
+          const inputValue = Array.isArray(value) ? value.join(", ") : value;
+          control = selectorType === "entity" && config.multiple
+            ? `<textarea name="${this._escape(name)}" data-list ${required} placeholder="entity.one, entity.two">${this._escape(inputValue)}</textarea>`
+            : `<input name="${this._escape(name)}" type="text" value="${this._escape(inputValue)}" ${required}>`;
+        }
+      } else if (selectorType === "text" || selectorType === "template" || field.type === "string") {
+        control = `<input name="${this._escape(name)}" type="text" value="${this._escape(value)}" ${required}>`;
+      } else if (selectorType === "number" || field.type === "integer" || field.type === "float") {
+        control = `<input name="${this._escape(name)}" type="number" value="${this._escape(value)}" min="${this._escape(config.min ?? field.valueMin ?? "")}" max="${this._escape(config.max ?? field.valueMax ?? "")}" step="${this._escape(config.step ?? "any")}" ${required}>`;
+      } else if (selectorType === "duration" || field.type === "positive_time_period_dict") {
+        control = `<input name="${this._escape(name)}" type="text" value="${this._escape(typeof value === "object" ? JSON.stringify(value) : value)}" placeholder="00:00:01" ${required}>`;
+      } else {
+        control = `<textarea name="${this._escape(name)}" data-json ${required}>${this._escape(JSON.stringify(value || {}, null, 2))}</textarea>`;
+      }
+      const error = step.errors?.[name];
+      return `<label class="flow-field"><span>${this._escape(label)}${field.required ? " *" : ""}</span>${control}${error ? `<small class="field-error">${this._escape(this._errorLabel(error))}</small>` : ""}${field.description?.suffix ? `<small>${this._escape(field.description.suffix)}</small>` : ""}</label>`;
+    }).join("");
+    return `<p class="dialog-description">${this._escape(this._stepDescription(step))}</p>
+      ${step.errors?.base ? `<p class="field-error">${this._escape(this._errorLabel(step.errors.base))}</p>` : ""}
+      <form id="dashboard-flow-form" data-flow-form>${fields}</form>`;
+  }
+
+  _fieldLabel(name) {
+    const labels = {
+      name: "Remote name",
+      double_ms: "Double-press delay (ms)",
+      hold_ms: "Hold delay (ms)",
+      repeat_ms: "Repeat interval (ms)",
+      entities: "Button event entities",
+      automation: "Blueprint automation",
+      disable_source: "Disable the source automation after import",
+      supports_double: "Supports double press",
+      supports_long: "Supports long press",
+      repeat: "Repeat while held",
+      detect_all: "Detect every gesture",
+    };
+    return labels[name] || name.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  _selectorOptions(type, config) {
+    if (type === "device") {
+      const filters = config.filter
+        ? Array.isArray(config.filter) ? config.filter : [config.filter]
+        : [];
+      const integration = config.integration;
+      return Object.entries(this._hass.devices || {})
+        .filter(([, device]) => {
+          const identifiers = device.identifiers || [];
+          const deviceIntegrations = identifiers.map(([domain]) => domain);
+          return (
+            (!integration || deviceIntegrations.includes(integration)) &&
+            filters.every(
+              (filter) =>
+                (!filter.integration || deviceIntegrations.includes(filter.integration)) &&
+                (!filter.manufacturer || device.manufacturer === filter.manufacturer) &&
+                (!filter.model || device.model === filter.model),
+            )
+          );
+        })
+        .map(([id, device]) => [id, device.name_by_user || device.name || id]);
+    }
+    if (type === "area") {
+      return Object.entries(this._hass.areas || {}).map(([id, area]) => [
+        id,
+        area.name || id,
+      ]);
+    }
+    const domains = config.domain
+      ? Array.isArray(config.domain) ? config.domain : [config.domain]
+      : null;
+    return Object.entries(this._hass.states || {})
+      .filter(([entityId]) => !domains || domains.includes(entityId.split(".")[0]))
+      .map(([entityId, state]) => [
+        entityId,
+        `${state.attributes?.friendly_name || entityId} (${entityId})`,
+      ])
+      .sort((first, second) => first[1].localeCompare(second[1]));
+  }
+
+  _stepDescription(step) {
+    const descriptions = {
+      actions: `Configure actions for ${step.description_placeholders?.button || "this button"}. Leave an action list empty to disable that gesture.`,
+      reconfigure: `Update settings for ${step.description_placeholders?.button || "this button"}.`,
+      manual_buttons: `Choose the event entity for each button on ${step.description_placeholders?.remote || "this remote"}.`,
+      reconfigure_events: "Choose how each event type from this remote should be interpreted.",
+      device_confirm: `Confirm the ${step.description_placeholders?.count || ""} buttons found for ${step.description_placeholders?.remote || "this device"}.`,
+    };
+    return descriptions[step.step_id] || "Complete the fields below and continue.";
+  }
+
+  _errorLabel(error) {
+    const labels = {
+      invalid_action: "One or more action lists are invalid.",
+      no_entities: "Select at least one event entity.",
+      already_configured: "One or more event entities are already assigned to another button.",
+      no_buttons: "At least one button with an event entity is required.",
+      not_blueprint: "The selected automation is not a supported Pico blueprint.",
+      no_blueprint_automations: "No eligible Pico blueprint automations were found.",
+      nothing_to_import: "No valid blueprint automations were selected.",
+    };
+    return labels[error] || error.replaceAll("_", " ");
+  }
+
+  _readFlowForm(form) {
+    const values = {};
+    for (const control of form.elements) {
+      if (!control.name || control.disabled) continue;
+      if (control.type === "checkbox") {
+        values[control.name] = control.checked;
+        continue;
+      }
+      if (control.multiple) {
+        values[control.name] = Array.from(control.selectedOptions, (option) => option.value);
+        continue;
+      }
+      const value = control.value.trim();
+      if (control.hasAttribute("data-json")) {
+        try {
+          values[control.name] = value ? JSON.parse(value) : [];
+        } catch {
+          control.setCustomValidity("Enter valid JSON.");
+          control.reportValidity();
+          return null;
+        }
+      } else if (control.hasAttribute("data-list")) {
+        values[control.name] = value.split(/[,\n]+/).map((item) => item.trim()).filter(Boolean);
+      } else if (control.type === "number") {
+        values[control.name] = value === "" ? "" : Number(value);
+      } else if (value !== "") {
+        values[control.name] = value;
+      }
+    }
+    return values;
+  }
+
+  _openSettingsDialog() {
+    const remotes = this._remotes || [];
+    const content = remotes.length
+      ? `<p class="dialog-description">Choose a remote to adjust its click and hold timing. These settings are stored per remote.</p>
+         <div class="dialog-remote-list">${remotes.map((remote) => `
+           <div class="dialog-remote">
+             <div><strong>${this._escape(remote.title)}</strong><small>${remote.buttons.length} configured ${remote.buttons.length === 1 ? "button" : "buttons"}</small></div>
+             <button class="secondary" data-action="settings-select-remote" data-entry-id="${this._escape(remote.entry_id)}">Timing settings</button>
+           </div>`).join("")}</div>`
+      : `<p class="dialog-description">There are no remotes to configure yet. Add a remote to manage its settings.</p>`;
+    this._renderDialog(
+      "Integration settings",
+      content,
+      `<button class="secondary" data-action="dialog-close">Close</button>`,
+    );
+  }
+
+  _openManageDialog(entryId) {
+    const remote = (this._remotes || []).find((item) => item.entry_id === entryId);
+    if (!remote) {
+      this._renderDialogError(new Error("That remote is no longer available. Refresh the dashboard and try again."));
+      return;
+    }
+    const content = `<div class="manage-summary">
+        <p class="dialog-description">Manage <strong>${this._escape(remote.title)}</strong> without leaving this dashboard.</p>
+        <div class="manage-actions">
+          <button class="secondary" data-action="manage-configure-remote" data-entry-id="${this._escape(entryId)}">Remote configuration</button>
+          <button class="secondary" data-action="manage-timing" data-entry-id="${this._escape(entryId)}">Timing settings</button>
+          <button class="primary" data-action="manage-add-button" data-entry-id="${this._escape(entryId)}">Add button</button>
+        </div>
+        <h3>Buttons</h3>
+        <div class="dialog-button-list">${remote.buttons.length ? remote.buttons.map((button) => `
+          <div class="dialog-remote">
+            <div><strong>${this._escape(button.title)}</strong><small>${this._escape(button.entities.join(", ") || "Read directly from Lutron")}</small></div>
+            <button class="secondary" data-action="edit-button" data-entry-id="${this._escape(entryId)}" data-subentry-id="${this._escape(button.subentry_id)}">Edit button</button>
+          </div>`).join("") : `<p class="muted">No buttons are configured.</p>`}</div>
+      </div>`;
+    this._renderDialog(
+      "Manage remote",
+      content,
+      `<button class="secondary" data-action="dialog-close">Close</button>`,
+    );
+  }
+
+  _renderDialog(title, content, footer = "") {
+    let host = this.shadowRoot.querySelector(".dialog-host");
+    if (!host) {
+      this._dialogOpener = this.shadowRoot.activeElement;
+      host = document.createElement("div");
+      host.className = "dialog-host";
+      this.shadowRoot.append(host);
+    }
+    host.innerHTML = `<div class="dialog-backdrop">
+      <section class="dashboard-dialog" role="dialog" aria-modal="true" aria-labelledby="dashboard-dialog-title">
+        <header class="dialog-header"><h2 id="dashboard-dialog-title">${this._escape(title)}</h2>
+          <button class="icon-button" data-action="dialog-close" aria-label="Close dialog">×</button>
+        </header>
+        <div class="dialog-content">${content}</div>
+        ${footer ? `<footer class="dialog-footer">${footer}</footer>` : ""}
+      </section>
+    </div>`;
+    host.querySelector(".dialog-backdrop").addEventListener("click", (event) => {
+      if (event.target === event.currentTarget) this._closeDialog();
+    });
+    host.querySelector(".dashboard-dialog button, .dashboard-dialog input, .dashboard-dialog select, .dashboard-dialog textarea")?.focus();
+  }
+
+  _renderDialogError(error) {
+    const message = typeof error === "string"
+      ? error
+      : error?.message || error?.body || "Home Assistant could not complete this request.";
+    this._activeFlow = null;
+    this._renderDialog(
+      "Could not save configuration",
+      `<p class="field-error">${this._escape(message)}</p>`,
+      `<button class="secondary" data-action="dialog-close">Close</button>`,
+    );
+  }
+
+  _closeDialog() {
+    const flow = this._activeFlow;
+    this._activeFlow = null;
+    this.shadowRoot.querySelector(".dialog-host")?.remove();
+    this._dialogOpener?.focus?.();
+    this._dialogOpener = null;
+    if (flow?.flowId) {
+      this._hass.callApi(
+        "DELETE",
+        this._apiPath(flow.kind, flow.flowId),
+        undefined,
+        { "HA-Frontend-Base": `${window.location.protocol}//${window.location.host}` },
+      ).catch((error) => console.error("Could not close Button Actions config flow", error));
+    }
   }
 
   _styles() {
@@ -329,6 +778,33 @@ class ButtonActionsPanel extends HTMLElement {
       .message.error { color: var(--error-color); }
       .no-results { padding: 22px; color: var(--secondary-text-color); text-align: center; }
       .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+      .dialog-host { position: fixed; inset: 0; z-index: 10; }
+      .dialog-backdrop { box-sizing: border-box; display: grid; place-items: center; width: 100%; height: 100%; padding: 20px; background: rgb(0 0 0 / 48%); }
+      .dashboard-dialog { display: flex; flex-direction: column; width: min(620px, 100%); max-height: min(820px, 92vh); overflow: hidden; color: var(--primary-text-color); background: var(--card-background-color); border-radius: 16px; box-shadow: 0 14px 48px rgb(0 0 0 / 28%); }
+      .dialog-header { flex: none; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--divider-color); }
+      .dialog-header h2 { font-size: 20px; }
+      .icon-button { padding: 4px 10px; color: var(--secondary-text-color); background: transparent; font-size: 26px; line-height: 1; }
+      .dialog-content { overflow: auto; padding: 22px 24px; }
+      .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; flex: none; padding: 16px 24px; border-top: 1px solid var(--divider-color); }
+      .dialog-description { margin: 0 0 18px; color: var(--secondary-text-color); line-height: 1.5; }
+      .dialog-loading, .dialog-success { padding: 8px 0; color: var(--secondary-text-color); }
+      .dialog-success { color: var(--success-color, #2e7d32); }
+      .flow-menu, .dialog-remote-list, .dialog-button-list { display: grid; gap: 8px; }
+      .menu-option { width: 100%; padding: 14px 16px; text-align: left; color: var(--primary-text-color); background: var(--secondary-background-color); }
+      .menu-option:hover, .dialog-remote button:hover { filter: brightness(.96); }
+      .flow-field { display: grid; gap: 7px; margin: 0 0 17px; font-size: 14px; font-weight: 500; }
+      .flow-field input, .flow-field select, .flow-field textarea { box-sizing: border-box; width: 100%; min-height: 42px; border: 1px solid var(--divider-color); border-radius: 8px; padding: 10px 12px; color: var(--primary-text-color); background: var(--card-background-color); font: inherit; }
+      .flow-field input[type="checkbox"] { justify-self: start; width: 20px; min-height: 20px; accent-color: var(--primary-color); }
+      .flow-field textarea { min-height: 90px; resize: vertical; }
+      .flow-field textarea.json-input { min-height: 150px; font-family: var(--code-font-family, monospace); font-size: 12px; }
+      .flow-field small, .dialog-remote small { color: var(--secondary-text-color); font-size: 12px; font-weight: 400; line-height: 1.45; }
+      .field-error { color: var(--error-color); }
+      .dialog-remote { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 14px; border: 1px solid var(--divider-color); border-radius: 10px; }
+      .dialog-remote > div { display: grid; gap: 4px; min-width: 0; }
+      .dialog-remote strong { overflow-wrap: anywhere; }
+      .manage-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+      .manage-summary h3 { margin: 0 0 12px; font-size: 15px; }
+      .button-link { display: inline-block; text-decoration: none; }
       @media (max-width: 700px) {
         main { padding: 18px 12px 32px; }
         header { align-items: flex-start; flex-direction: column; }
@@ -343,6 +819,12 @@ class ButtonActionsPanel extends HTMLElement {
         .button-list { padding: 0 16px; }
         .button-row { align-items: flex-start; gap: 9px; }
         .button-icon { width: 30px; height: 30px; }
+        .dialog-backdrop { align-items: end; padding: 0; }
+        .dashboard-dialog { width: 100%; max-height: 92dvh; border-radius: 16px 16px 0 0; }
+        .dialog-header { padding: 16px 18px; }
+        .dialog-content { padding: 18px; }
+        .dialog-footer { padding: 13px 18px; }
+        .dialog-remote { align-items: flex-start; flex-direction: column; }
       }
     `;
   }
