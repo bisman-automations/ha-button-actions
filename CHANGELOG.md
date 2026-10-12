@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Button Actions is now a service integration. Each remote has a service device linked to its physical source, which provides its device triggers; linked remotes don't add duplicate gesture event entities to the physical device.
+- Each remote is now a native collapsible section, collapsed by default. Its name, button count, and status remain visible; expanding it reveals its settings and buttons. The **Manage remote** button is inside the expanded section.
 
 ## [1.8.0] - 2026-10-11
 
