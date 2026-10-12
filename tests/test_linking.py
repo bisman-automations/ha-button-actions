@@ -1,4 +1,4 @@
-"""Setting up from a device, and remotes shown on their real device (1.7.0)."""
+"""Setting up remotes as linked service devices without duplicate entities."""
 
 from __future__ import annotations
 
@@ -19,19 +19,21 @@ from pytest_homeassistant_custom_component.common import (
     async_mock_service,
 )
 
-from custom_components.button_actions import device_trigger
 from custom_components.button_actions.const import (
     CONF_ACTIONS,
     CONF_DOUBLE_MS,
     CONF_ENTITIES,
     CONF_HOLD_MS,
+    CONF_LEGACY_DEVICE_ID,
     CONF_REPEAT,
     CONF_REPEAT_MS,
     CONF_SLOT,
     DOMAIN,
+    GESTURE_EVENT,
     SUBENTRY_BUTTON,
 )
 from custom_components.button_actions.controller import device_belongs_to, own_device
+from custom_components.button_actions.device_trigger import async_get_triggers
 
 MOMENTARY = ["initial_press", "short_release", "long_press", "long_release"]
 _ticks = itertools.count()
@@ -41,16 +43,14 @@ SHARED_IDENTIFIERS = hasattr(dr.DeviceRegistry, "async_get_device_by_identifier"
 
 
 def _is_linked(hass: HomeAssistant, own: dr.DeviceEntry, device_id: str) -> bool:
-    """Whether the remote's own device is linked to the device.
-
-    Home Assistant 2026.8+ links devices that share identifiers ("Linked
-    devices"); older versions show the remote as connected via it.
-    """
-
+    """Whether the service device is related to its physical source."""
     if not SHARED_IDENTIFIERS:
         return own.via_device_id == device_id
     device = dr.async_get(hass).async_get(device_id)
-    return own.via_device_id is None and device.identifiers <= own.identifiers
+    return device is not None and own.via_device_id is None and (
+        {identifier for identifier in device.identifiers if identifier[0] != DOMAIN}
+        <= own.identifiers
+    )
 
 
 def _hub(hass: HomeAssistant, event_types=MOMENTARY, count=2, name="Boys Hub"):
@@ -125,12 +125,15 @@ async def test_setup_from_device(hass: HomeAssistant) -> None:
     assert subs == {"button_1": [entity_ids[0]], "button_2": [entity_ids[1]]}
     await hass.async_block_till_done()
 
-    # No gesture entities: the hub shows its own button events. The remote's
-    # own device holds its triggers and is connected via the hub.
+    # No duplicate gesture entities on the source device. Button Actions has
+    # its own service device linked to the source hardware.
     registry = er.async_get(hass)
     assert er.async_entries_for_config_entry(registry, entry.entry_id) == []
     own = own_device(hass, entry.entry_id)
     assert own is not None and _is_linked(hass, own, device.id)
+    service_type = getattr(getattr(dr, "DeviceEntryType", None), "SERVICE", None)
+    if service_type is not None:
+        assert own.entry_type is service_type
     assert not device_belongs_to(
         dr.async_get(hass).async_get(device.id), entry.entry_id
     )
@@ -199,8 +202,10 @@ def _remote(hass: HomeAssistant, entity_ids, title="Hub Remote", actions=None):
     return entry
 
 
-async def test_existing_remote_moves_onto_its_device(hass: HomeAssistant) -> None:
-    device, entity_ids = _hub(hass)
+async def test_existing_remote_becomes_linked_service_device(
+    hass: HomeAssistant,
+) -> None:
+    _device, entity_ids = _hub(hass)
     entry = _remote(hass, entity_ids)
     # Before 1.7.0 it had a "Button remote" device of its own.
     old = dr.async_get(hass).async_get_or_create(
@@ -221,11 +226,37 @@ async def test_existing_remote_moves_onto_its_device(hass: HomeAssistant) -> Non
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    # Its gesture entity is removed; the hub shows its own button events.
+    # Its duplicate gesture entity is removed.
     assert registry.async_get(old_entity.entity_id) is None
-    # The old device stays, so automations using its triggers keep working.
+    # The original service device keeps its identity and appears linked.
     kept = dr.async_get(hass).async_get(old.id)
-    assert kept is not None and _is_linked(hass, kept, device.id)
+    assert kept is not None and _is_linked(hass, kept, _device.id)
+
+    calls = async_mock_service(hass, "test", "automation")
+    assert await async_setup_component(
+        hass,
+        "automation",
+        {
+            "automation": [
+                {
+                    "triggers": [
+                        {
+                            "trigger": "device",
+                            "domain": DOMAIN,
+                            "device_id": old.id,
+                            "type": "short_press",
+                            "subtype": "button_1",
+                        }
+                    ],
+                    "actions": [{"action": "test.automation"}],
+                }
+            ]
+        },
+    )
+    _fire(hass, entity_ids[0], "initial_press")
+    _fire(hass, entity_ids[0], "short_release")
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert len(calls) == 1
 
 
 @pytest.mark.skipif(
@@ -245,24 +276,80 @@ async def test_undoes_170_join(hass: HomeAssistant) -> None:
     assert hub is not None and not device_belongs_to(hub, entry.entry_id)
 
 
-async def test_buttons_on_different_devices_keep_own_device(
+async def test_unlinked_legacy_service_device_is_preserved(
     hass: HomeAssistant,
 ) -> None:
     _, first = _hub(hass, count=1, name="Hub A")
     _, second = _hub(hass, count=1, name="Hub B")
     entry = _remote(hass, [first[0], second[0]])
+    old = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, entry.entry_id)},
+        name="Hub Remote",
+    )
+    er.async_get(hass).async_get_or_create(
+        "event",
+        DOMAIN,
+        f"{entry.entry_id}_button_1",
+        config_entry=entry,
+        device_id=old.id,
+        suggested_object_id="hub_remote_button_1",
+    )
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     own = own_device(hass, entry.entry_id)
-    assert own is not None
+    assert own is not None and own.id == old.id
     ours = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
-    assert {e.device_id for e in ours} == {own.id}
+    assert len(ours) == 2 and {e.device_id for e in ours} == {old.id}
 
 
-async def test_triggers_on_shared_device(hass: HomeAssistant) -> None:
-    """Two remotes on one device each get their own triggers."""
+async def test_legacy_device_trigger_resolves_after_service_device_recreation(
+    hass: HomeAssistant,
+) -> None:
+    """Triggers saved before the service-only release still resolve."""
+    _device, entity_ids = _hub(hass, count=1)
+    entry = _remote(hass, entity_ids)
+    legacy_device_id = "removed-service-device"
+    hass.config_entries.async_update_entry(
+        entry,
+        data={**entry.data, CONF_LEGACY_DEVICE_ID: legacy_device_id},
+    )
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    own = own_device(hass, entry.entry_id)
+    assert own is not None and own.id != legacy_device_id
     calls = async_mock_service(hass, "test", "automation")
-    device, entity_ids = _hub(hass, count=2)
+    assert await async_setup_component(
+        hass,
+        "automation",
+        {
+            "automation": [
+                {
+                    "triggers": [
+                        {
+                            "trigger": "device",
+                            "domain": DOMAIN,
+                            "device_id": legacy_device_id,
+                            "type": "short_press",
+                            "subtype": "button_1",
+                        }
+                    ],
+                    "actions": [{"action": "test.automation"}],
+                }
+            ]
+        },
+    )
+    _fire(hass, entity_ids[0], "initial_press")
+    _fire(hass, entity_ids[0], "short_release")
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert len(calls) == 1
+
+
+async def test_event_trigger_is_scoped_to_remote(hass: HomeAssistant) -> None:
+    """A gesture event trigger can select one remote on a shared device."""
+    calls = async_mock_service(hass, "test", "automation")
+    _device, entity_ids = _hub(hass, count=2)
     first = _remote(hass, [entity_ids[0]], title="Left")
     second = _remote(hass, [entity_ids[1]], title="Right")
     # Setting up the integration loads both remotes.
@@ -270,26 +357,25 @@ async def test_triggers_on_shared_device(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
     assert second.state is config_entries.ConfigEntryState.LOADED
 
-    # Each remote lists its triggers on its own device.
-    right_device = own_device(hass, second.entry_id)
-    triggers = await device_trigger.async_get_triggers(hass, right_device.id)
-    assert {t["entry_id"] for t in triggers} == {second.entry_id}
-    # A 1.7.0 trigger picked on the shared device still matches its remote.
-    shared = await device_trigger.async_get_triggers(hass, device.id)
-    assert {t["entry_id"] for t in shared} == {first.entry_id, second.entry_id}
-
-    right_trigger = next(
-        t
-        for t in shared
-        if t["entry_id"] == second.entry_id and t["type"] == "short_press"
-    )
+    # The service emits config-scoped gesture events; a standard Event trigger
+    # can target one remote without creating a device or duplicate entities.
     assert await async_setup_component(
         hass,
         "automation",
         {
             "automation": [
                 {
-                    "triggers": [right_trigger],
+                    "triggers": [
+                        {
+                            "trigger": "event",
+                            "event_type": GESTURE_EVENT,
+                            "event_data": {
+                                "entry_id": second.entry_id,
+                                "button": "button_1",
+                                "gesture": "short_press",
+                            },
+                        }
+                    ],
                     "actions": [{"action": "test.automation"}],
                 }
             ]
@@ -343,8 +429,7 @@ async def test_pico_remote_on_pico(hass: HomeAssistant, source_device_missing) -
     own = own_device(hass, entry.entry_id)
     assert own is not None
     if source_device_missing:
-        assert {e.device_id for e in ours} == {own.id}
-        assert own.via_device_id is None
+        assert len(ours) == 2 and {e.device_id for e in ours} == {own.id}
     else:
         assert ours == []
         assert _is_linked(hass, own, pico.id)
@@ -383,9 +468,10 @@ async def test_reconfigure_links_any_device(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     await hass.async_block_till_done()
     assert "source_device" not in entry.data
-    # Unlinked again, so its gesture entities come back on its own device.
+    # Unlinked again, so its gesture entities return on its service device.
     ours = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
     own = own_device(hass, entry.entry_id)
+    assert own is not None
     assert len(ours) == 2 and {e.device_id for e in ours} == {own.id}
 
 
@@ -458,9 +544,8 @@ async def test_buttons_on_device_connected_via_hub(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
 
-@pytest.mark.skipif(not SHARED_IDENTIFIERS, reason="Linked devices need 2026.8+")
-async def test_linked_devices_card(hass: HomeAssistant, hass_ws_client) -> None:
-    """The hub's page lists the remote under "Linked devices", and back."""
+async def test_service_adds_a_linked_service_device(hass: HomeAssistant) -> None:
+    """The remote's service device appears under the source's linked devices."""
     device, _ = _hub(hass)
     result = await _device_flow(hass, device.id)
     entry = (await hass.config_entries.flow.async_configure(result["flow_id"], {}))[
@@ -468,27 +553,23 @@ async def test_linked_devices_card(hass: HomeAssistant, hass_ws_client) -> None:
     ]
     await hass.async_block_till_done()
     own = own_device(hass, entry.entry_id)
-    assert await async_setup_component(hass, "config", {})
-    client = await hass_ws_client(hass)
-    await client.send_json_auto_id(
-        {"type": "config/device_registry/list_linked_devices", "device_id": device.id}
-    )
-    response = await client.receive_json()
-    assert response["success"], response
-    assert response["result"]["linked_devices"] == [own.id]
+    assert own is not None and _is_linked(hass, own, device.id)
+    triggers = await async_get_triggers(hass, own.id)
+    assert triggers
+    assert {trigger["device_id"] for trigger in triggers} == {own.id}
+    assert {trigger["entry_id"] for trigger in triggers} == {entry.entry_id}
 
 
-@pytest.mark.skipif(not SHARED_IDENTIFIERS, reason="Linked devices need 2026.8+")
 async def test_second_remote_on_same_device(hass: HomeAssistant) -> None:
-    """Only one remote can share a device's identifiers; the next uses via."""
-    device, entity_ids = _hub(hass)
+    """Each service config gets its own linked device and triggers."""
+    _device, entity_ids = _hub(hass)
     first = _remote(hass, [entity_ids[0]], title="Left")
     second = _remote(hass, [entity_ids[1]], title="Right")
     assert await hass.config_entries.async_setup(first.entry_id)
     await hass.async_block_till_done()
     assert second.state is config_entries.ConfigEntryState.LOADED
     owns = [own_device(hass, e.entry_id) for e in (first, second)]
-    assert all(
-        _is_linked(hass, own, device.id) or own.via_device_id == device.id
-        for own in owns
-    )
+    assert all(own is not None for own in owns)
+    assert all(_is_linked(hass, own, _device.id) for own in owns)
+    assert er.async_entries_for_config_entry(er.async_get(hass), first.entry_id) == []
+    assert er.async_entries_for_config_entry(er.async_get(hass), second.entry_id) == []

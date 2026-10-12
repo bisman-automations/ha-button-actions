@@ -153,12 +153,12 @@ CONF_REPEAT: Final = "repeat"  # bool: long-press repeats while held
 # so device triggers and the gesture entity see every gesture.
 CONF_DETECT_ALL: Final = "detect_all"
 
-# Fired for every gesture; backs the device triggers.
+# Fired for every gesture; backs Event triggers and existing device triggers.
 GESTURE_EVENT: Final = "button_actions_gesture"
 
-# Entry data: the device a remote was set up from. Its gesture entities and
-# device triggers are shown on that device.
+# Entry data: the physical device a remote was set up from.
 CONF_SOURCE_DEVICE: Final = "source_device"
+CONF_LEGACY_DEVICE_ID: Final = "legacy_device_id"
 
 # Entry data: the blueprint automation a remote was imported from.
 CONF_SOURCE_AUTOMATION: Final = "source_automation"
