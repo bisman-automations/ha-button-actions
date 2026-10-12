@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Button Actions is now a service integration and no longer creates a device for each remote. Linked remotes do not create duplicate gesture event entities; use a standard Event trigger filtered by remote name, button and gesture. Legacy remote devices are removed during setup.
+
 ## [1.8.0] - 2026-10-11
 
 ### Added

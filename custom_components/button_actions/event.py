@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
@@ -73,12 +72,6 @@ class ButtonGestureEvent(EventEntity):
         # Numbered so Home Assistant's alphabetical list matches the remote.
         self._attr_translation_placeholders = placeholders
         self._attr_icon = icon
-        # On the remote's own device. Attached by device_entry rather than
-        # device_info, so entities from several button subentries don't each
-        # claim the device (Home Assistant 2026.8+ gives a device one subentry).
-        controller = entry.runtime_data
-        if device_id := controller.device_id():
-            self.device_entry = dr.async_get(controller.hass).async_get(device_id)
 
     async def async_added_to_hass(self) -> None:
         """Start receiving gestures from the controller."""

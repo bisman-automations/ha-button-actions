@@ -15,7 +15,7 @@ The usual way to get click, double-click and hold out of a Pico is a blueprint a
 - **Short presses always wait.** The automation can't know you never set a double-click action, so every short press waits for one.
 - **Hold-to-dim is awkward.** Repeating an action while a button is held isn't something a blueprint does well.
 
-Button Actions runs a small state machine per button inside Home Assistant, so every button is independent, timing is tight, and each remote is just a device you configure.
+Button Actions runs a small state machine per button inside Home Assistant, so every button is independent and timing is tight. Each remote has its own service configuration without adding a device to Home Assistant.
 
 ## Dashboard preview
 
@@ -41,10 +41,10 @@ These illustrative mockups show the administrator-only sidebar dashboard on desk
 - **Hold to repeat:** turn on repeat for a button and its long-press action keeps running while held. Pair it with `brightness_step_pct` or `volume_up` for hold-to-dim and hold-to-raise.
 - **No waiting when you don't need it:** a button with no double-press action fires its short press the instant you let go. A button with no long-press action treats a long press as a short one.
 - **Import your blueprint automations:** convert automations made with the *Lutron Pico Universal Actions (Event Entities)* blueprint one at a time or all at once. Buttons, actions and timing carry over, the old automations are turned off for you, and remotes can read presses straight from Lutron.
-- **Linked to your devices:** pick a Pico, hub or Zigbee remote and its buttons are found for you. The remote's gesture entities and triggers then appear on that device's own page.
-- **Device triggers:** use "Living Room Remote: Middle button double pressed" in your own automations when you need one.
+- **Set up from a device:** pick a Pico, hub or Zigbee remote and its buttons are found for you. Button Actions uses the device's events without adding another device or duplicate event entities.
+- **Automation triggers:** use a standard Event trigger for the remote's detected button gestures without creating extra devices or entities.
 - **Repairs:** you're told if an imported blueprint automation gets turned back on (presses would run twice), or if a button's event entity or Pico disappears.
-- **Gesture event entities:** each button also gets an event entity that reports `short_press`, `double_press`, `long_press` and `long_release`, so presses show up in the logbook and history. A remote linked to a device doesn't need them, since the device shows its own button events.
+- **Gesture event entities:** unlinked remotes get an event entity per button that reports `short_press`, `double_press`, `long_press` and `long_release`. Linked remotes don't get duplicates; use an Event trigger for their gestures.
 - **Lutron Caséta Picos built in:** pick a Pico from the core Lutron Caséta integration and its buttons are set up for you. No extra integration needed.
 - **Works with other button devices too:** Matter switches and hub buttons, Zigbee, ESPHome and more. Each event type a device sends is recognized automatically, whether it reports presses and releases or detects single, double and held presses itself.
 - **Duplicate a remote:** copy every button's actions to a new remote, with find-and-replace to retarget areas and entities in one step.
@@ -82,7 +82,7 @@ The quickest way. Pick the device the buttons belong to: a Lutron Caséta Pico, 
 
 Then use the ⚙ next to each button to choose what it does.
 
-The remote is linked to the device its buttons are on. On Home Assistant 2026.8 and newer, each device's page lists the other under **Linked devices**, the same way a controller and its network client are linked; older versions show the remote as connected via the device. The remote uses the device's own button events and doesn't add any of its own.
+Button Actions uses the device's own button events and does not create another device or add duplicate button event entities. Use a standard Event trigger for the remote's detected gestures, as described below.
 
 Some devices only report a press, with no release and nothing for a held button. A SwitchBot Hub 2's on and off buttons work this way. Long press is then turned off for you. If a quick second press doesn't register either, turn off **Supports double press** too, so short presses fire instantly.
 
@@ -155,7 +155,19 @@ Remotes imported from the blueprint use event entities from lutron-caseta-events
 
 ### Using a button in your own automations
 
-Each remote has triggers for every button and gesture, such as *"Middle button" double pressed*. In the automation editor, pick the remote's own device (named after the remote, and listed under **Linked devices** on its Pico or button device). On Home Assistant 2026.4 and newer, a remote that isn't linked to a device can also use **Event received** on a button's gesture entity.
+Button Actions does not create a device just to provide device triggers. For a linked remote, use a standard **Event** trigger with event type `button_actions_gesture` and filter `remote`, `button` and `gesture` to the remote and gesture you want. For example:
+
+```yaml
+triggers:
+  - trigger: event
+    event_type: button_actions_gesture
+    event_data:
+      remote: Living Room Remote
+      button: button_1
+      gesture: double_press
+```
+
+On an unlinked remote, you can also use **Event received** on a button's gesture event entity.
 
 A button only waits for double and long presses when it has an action for them, so its short presses stay instant. To use a double or long press only from an automation, turn on **Detect every gesture** on that button. Its short presses then wait briefly for a possible second press.
 

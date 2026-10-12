@@ -14,7 +14,7 @@
     "device_automation"
   ],
   "documentation": "https://github.com/bisman-automations/ha-button-actions",
-  "integration_type": "device",
+  "integration_type": "service",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/bisman-automations/ha-button-actions/issues",
   "requirements": [],

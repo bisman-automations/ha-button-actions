@@ -35,6 +35,7 @@ from .const import (
     CONF_ENTITIES,
     CONF_EVENT_ROLES,
     CONF_HOLD_MS,
+    CONF_LEGACY_DEVICE_ID,
     CONF_PRESS_EVENT,
     CONF_RELEASE_EVENT,
     CONF_REPEAT,
@@ -247,10 +248,7 @@ class ButtonActionsController:
         self._device_id: str | None = entry.data.get(CONF_DEVICE_ID)
         self.buttons = buttons_from_entry(entry)
         self.linked_device_id = linked_device_id(hass, entry, self.buttons)
-        # The remote's own device; set up in async_setup_entry. It holds the
-        # device triggers, which Home Assistant only lists on a device that
-        # belongs to this integration.
-        self.own_device_id: str | None = None
+        self.legacy_device_id: str | None = entry.data.get(CONF_LEGACY_DEVICE_ID)
         # Event-entity remotes: entity_id -> (slot, detector)
         # Lutron remotes: slot -> (slot, detector)
         self._detectors: dict[str, tuple[str, GestureDetector]] = {}
@@ -431,20 +429,16 @@ class ButtonActionsController:
         _dispatch(detector, role)
 
     @callback
-    def device_id(self) -> str | None:
-        """The remote's own device, which holds its device triggers."""
-        if self.own_device_id:
-            return self.own_device_id
-        device = own_device(self.hass, self.entry.entry_id)
-        return device.id if device else None
-
-    @callback
     def _fire_gesture_event(self, slot: str, gesture: str) -> None:
-        """Back the device triggers ("On button double pressed")."""
+        """Fire a gesture event for automations and existing device triggers."""
         self.hass.bus.async_fire(
             GESTURE_EVENT,
             {
-                CONF_DEVICE_ID: self.device_id(),
+                **(
+                    {CONF_DEVICE_ID: self.linked_device_id}
+                    if self.linked_device_id
+                    else {}
+                ),
                 "linked_device_id": self.linked_device_id,
                 "entry_id": self.entry.entry_id,
                 "remote": self.entry.title,

@@ -16,6 +16,7 @@ from .const import (
     CONF_ACTIONS,
     CONF_ENTITIES,
     CONF_LAYOUT,
+    CONF_LEGACY_DEVICE_ID,
     CONF_REPEAT,
     CONF_SLOT,
     DOMAIN,
@@ -61,9 +62,8 @@ async def async_setup_entry(
     )
     # Before the update listener is added, so retitling doesn't trigger a reload.
     _async_number_button_titles(hass, entry)
-    controller.own_device_id = _async_own_device(hass, entry, controller)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    _async_tidy_devices(hass, entry, controller.own_device_id)
+    controller.legacy_device_id = _async_remove_devices(hass, entry)
     await controller.async_start()
     async_track_issues(hass, entry, controller)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -116,88 +116,34 @@ def _async_number_button_titles(hass: HomeAssistant, entry: ConfigEntry) -> None
 
 
 @callback
-def _async_own_device(
-    hass: HomeAssistant, entry: ConfigEntry, controller: ButtonActionsController
-) -> str:
-    """Create or update the remote's own device.
-
-    It holds the remote's device triggers. When the remote is linked to a Pico
-    or button device, Home Assistant 2026.8+ lists the two as linked devices
-    (they share that device's identifiers and connections). Older versions
-    show the remote as connected via that device instead.
-    """
+def _async_remove_devices(hass: HomeAssistant, entry: ConfigEntry) -> str | None:
+    """Remove legacy remote devices and detach the entry from shared devices."""
     registry = dr.async_get(hass)
     own_identifier = (DOMAIN, entry.entry_id)
-    # No subentry: the device is the whole remote, not one button.
-    device = registry.async_get_or_create(
-        config_entry_id=entry.entry_id,
-        identifiers={own_identifier},
-        name=entry.title,
-        manufacturer="Button Actions",
-        model="Button remote",
-    )
-    linked = (
-        registry.async_get(controller.linked_device_id)
-        if controller.linked_device_id
-        else None
-    )
-    identifiers = {own_identifier}
-    connections: set[tuple[str, str]] = set()
-    via_device_id = None
-    if linked is not None and hasattr(registry, "async_get_device_by_identifier"):
-        # 2026.8+: identifiers are unique per config entry, so sharing them
-        # marks the devices as the same hardware ("Linked devices").
-        identifiers |= linked.identifiers
-        connections = set(linked.connections)
-    elif linked is not None:
-        # Older versions would merge devices that share identifiers.
-        via_device_id = linked.id
-    if (
-        device.identifiers != identifiers
-        or device.connections != connections
-        or device.via_device_id != via_device_id
-    ):
-        try:
-            registry.async_update_device(
-                device.id,
-                new_identifiers=identifiers,
-                new_connections=connections,
-                via_device_id=via_device_id,
-            )
-        except dr.DeviceCollisionError:
-            # Another remote is already linked to the same device; show this
-            # one as connected via it instead.
-            registry.async_update_device(
-                device.id,
-                new_identifiers={own_identifier},
-                new_connections=set(),
-                via_device_id=linked.id if linked else None,
-            )
-    return device.id
-
-
-@callback
-def _async_tidy_devices(
-    hass: HomeAssistant, entry: ConfigEntry, current_device_id: str | None
-) -> None:
-    """Detach the remote from every device except its own.
-
-    1.7.0 added remotes to their Pico or button device on Home Assistant
-    versions that allowed it; that's undone here.
-    """
-    if current_device_id is None:
-        return
-    registry = dr.async_get(hass)
+    entity_registry = er.async_get(hass)
+    legacy_device_id = entry.data.get(CONF_LEGACY_DEVICE_ID)
     for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
-        if device.id == current_device_id:
-            continue
-        if hasattr(device, "config_entry_id"):
-            # Home Assistant 2026.8+: the device is wholly ours.
+        if own_identifier in device.identifiers:
+            legacy_device_id = device.id
+            hass.config_entries.async_update_entry(
+                entry,
+                data={**entry.data, CONF_LEGACY_DEVICE_ID: legacy_device_id},
+            )
+            for entity in er.async_entries_for_config_entry(
+                entity_registry, entry.entry_id
+            ):
+                if entity.device_id == device.id:
+                    entity_registry.async_update_entity(
+                        entity.entity_id, device_id=None
+                    )
             registry.async_remove_device(device.id)
         else:
+            # Older Home Assistant versions allowed an integration to join
+            # its config entry to an existing device.
             registry.async_update_device(
                 device.id, remove_config_entry_id=entry.entry_id
             )
+    return legacy_device_id
 
 
 @callback
