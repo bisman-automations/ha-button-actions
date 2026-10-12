@@ -134,7 +134,8 @@ class ButtonActionsPanel extends HTMLElement {
       <ha-card class="remote" data-search="${this._searchText(
         [remote.title, remote.source, ...remote.buttons.flatMap((button) => [button.title, ...button.entities])].join(" "),
       )}">
-        <div class="remote-header">
+        <details class="remote-collapse">
+          <summary class="remote-header">
           <div class="remote-heading">
             <div class="remote-icon"><ha-icon icon="mdi:remote"></ha-icon></div>
             <div>
@@ -142,19 +143,22 @@ class ButtonActionsPanel extends HTMLElement {
               <div class="meta">${source} <span class="dot">·</span> ${remote.buttons.length} ${remote.buttons.length === 1 ? "button" : "buttons"}</div>
             </div>
           </div>
-          <div class="remote-actions">
-            <span class="status ${healthy ? "healthy" : "attention"}">${healthy ? "Active" : this._escape(remote.state.replaceAll("_", " "))}</span>
-            <button class="secondary" data-action="manage-remote" data-entry-id="${this._escape(remote.entry_id)}">Manage remote</button>
+          <span class="status ${healthy ? "healthy" : "attention"}">${healthy ? "Active" : this._escape(remote.state.replaceAll("_", " "))}</span>
+          </summary>
+          <div class="remote-content">
+            <div class="remote-actions">
+              <button class="secondary" data-action="manage-remote" data-entry-id="${this._escape(remote.entry_id)}">Manage remote</button>
+            </div>
+            <div class="remote-details">
+              <span>${remote.supports_double ? "Double press supported" : "No double press"}</span>
+              <span>${remote.supports_long ? "Long press supported" : "No long press"}</span>
+              <span>Double ${remote.timing.double_ms} ms</span>
+              <span>Hold ${remote.timing.hold_ms} ms</span>
+              <span>Repeat ${remote.timing.repeat_ms} ms</span>
+            </div>
+            <div class="button-list">${buttons}</div>
           </div>
-        </div>
-        <div class="remote-details">
-          <span>${remote.supports_double ? "Double press supported" : "No double press"}</span>
-          <span>${remote.supports_long ? "Long press supported" : "No long press"}</span>
-          <span>Double ${remote.timing.double_ms} ms</span>
-          <span>Hold ${remote.timing.hold_ms} ms</span>
-          <span>Repeat ${remote.timing.repeat_ms} ms</span>
-        </div>
-        <div class="button-list">${buttons}</div>
+        </details>
       </ha-card>`;
   }
 

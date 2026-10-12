@@ -119,22 +119,18 @@ def _async_number_button_titles(hass: HomeAssistant, entry: ConfigEntry) -> None
 def _async_own_device(
     hass: HomeAssistant, entry: ConfigEntry, controller: ButtonActionsController
 ) -> str:
-    """Create or update the remote's own device.
-
-    It holds the remote's device triggers. When the remote is linked to a Pico
-    or button device, Home Assistant 2026.8+ lists the two as linked devices
-    (they share that device's identifiers and connections). Older versions
-    show the remote as connected via that device instead.
-    """
+    """Create a service device linked to the physical device providing buttons."""
     registry = dr.async_get(hass)
     own_identifier = (DOMAIN, entry.entry_id)
-    # No subentry: the device is the whole remote, not one button.
+    entry_type = getattr(getattr(dr, "DeviceEntryType", None), "SERVICE", None)
+    create_options = {"entry_type": entry_type} if entry_type is not None else {}
     device = registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={own_identifier},
         name=entry.title,
         manufacturer="Button Actions",
         model="Button remote",
+        **create_options,
     )
     linked = (
         registry.async_get(controller.linked_device_id)
@@ -145,12 +141,9 @@ def _async_own_device(
     connections: set[tuple[str, str]] = set()
     via_device_id = None
     if linked is not None and hasattr(registry, "async_get_device_by_identifier"):
-        # 2026.8+: identifiers are unique per config entry, so sharing them
-        # marks the devices as the same hardware ("Linked devices").
-        identifiers |= linked.identifiers
+        identifiers |= {i for i in linked.identifiers if i[0] != DOMAIN}
         connections = set(linked.connections)
     elif linked is not None:
-        # Older versions would merge devices that share identifiers.
         via_device_id = linked.id
     if (
         device.identifiers != identifiers
@@ -165,8 +158,6 @@ def _async_own_device(
                 via_device_id=via_device_id,
             )
         except dr.DeviceCollisionError:
-            # Another remote is already linked to the same device; show this
-            # one as connected via it instead.
             registry.async_update_device(
                 device.id,
                 new_identifiers={own_identifier},
@@ -178,21 +169,14 @@ def _async_own_device(
 
 @callback
 def _async_tidy_devices(
-    hass: HomeAssistant, entry: ConfigEntry, current_device_id: str | None
+    hass: HomeAssistant, entry: ConfigEntry, current_device_id: str
 ) -> None:
-    """Detach the remote from every device except its own.
-
-    1.7.0 added remotes to their Pico or button device on Home Assistant
-    versions that allowed it; that's undone here.
-    """
-    if current_device_id is None:
-        return
+    """Remove obsolete devices previously created for this remote."""
     registry = dr.async_get(hass)
     for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
         if device.id == current_device_id:
             continue
         if hasattr(device, "config_entry_id"):
-            # Home Assistant 2026.8+: the device is wholly ours.
             registry.async_remove_device(device.id)
         else:
             registry.async_update_device(

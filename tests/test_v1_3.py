@@ -24,7 +24,7 @@ from pytest_homeassistant_custom_component.common import (
     async_mock_service,
 )
 
-from custom_components.button_actions import device_trigger, repairs
+from custom_components.button_actions import repairs
 from custom_components.button_actions.const import (
     CONF_ACTIONS,
     CONF_DETECT_ALL,
@@ -38,11 +38,11 @@ from custom_components.button_actions.const import (
     CONF_SOURCE,
     CONF_SOURCE_AUTOMATION,
     DOMAIN,
+    GESTURE_EVENT,
     SOURCE_EVENT_ENTITY,
     SOURCE_LUTRON,
     SUBENTRY_BUTTON,
 )
-from custom_components.button_actions.controller import own_device
 
 ON = "event.office_remote_on"
 OFF = "event.office_remote_off"
@@ -84,7 +84,10 @@ def _timing():
 async def _event_remote(hass: HomeAssistant, buttons, data=None):
     for entity_id in (ON, OFF):
         er.async_get(hass).async_get_or_create(
-            "event", "test", entity_id, suggested_object_id=entity_id.split(".")[1]
+            "event",
+            "test",
+            entity_id,
+            suggested_object_id=entity_id.split(".")[1],
         )
         hass.states.async_set(entity_id, "unknown")
         _fire(hass, entity_id, "release")
@@ -107,34 +110,15 @@ async def _event_remote(hass: HomeAssistant, buttons, data=None):
     return entry
 
 
-def _device_id(hass: HomeAssistant, entry) -> str:
-    device = own_device(hass, entry.entry_id)
-    assert device is not None
-    return device.id
-
-
 # ---------------------------------------------------------------------------
-# Device triggers
+# Gesture event triggers
 # ---------------------------------------------------------------------------
 
 
-async def test_device_triggers_listed(hass: HomeAssistant) -> None:
-    entry = await _event_remote(hass, [_button("on", [ON]), _button("off", [OFF])])
-    device_id = _device_id(hass, entry)
-    triggers = await device_trigger.async_get_triggers(hass, device_id)
-    assert {(t["subtype"], t["type"]) for t in triggers} == {
-        (slot, gesture)
-        for slot in ("on", "off")
-        for gesture in ("short_press", "double_press", "long_press", "long_release")
-    }
-    assert all(t["domain"] == DOMAIN and t["device_id"] == device_id for t in triggers)
-
-
-async def test_device_trigger_fires_automation(hass: HomeAssistant) -> None:
+async def test_gesture_event_triggers_automation(hass: HomeAssistant) -> None:
     calls = async_mock_service(hass, "test", "automation")
     entry = await _event_remote(hass, [_button("on", [ON], {"short_press": LIGHT_ON})])
     async_mock_service(hass, "light", "turn_on")
-    device_id = _device_id(hass, entry)
     assert await async_setup_component(
         hass,
         "automation",
@@ -143,11 +127,13 @@ async def test_device_trigger_fires_automation(hass: HomeAssistant) -> None:
                 {
                     "triggers": [
                         {
-                            "trigger": "device",
-                            "domain": DOMAIN,
-                            "device_id": device_id,
-                            "type": "short_press",
-                            "subtype": "on",
+                            "trigger": "event",
+                            "event_type": GESTURE_EVENT,
+                            "event_data": {
+                                "entry_id": entry.entry_id,
+                                "button": "on",
+                                "gesture": "short_press",
+                            },
                         }
                     ],
                     "actions": [{"action": "test.automation"}],

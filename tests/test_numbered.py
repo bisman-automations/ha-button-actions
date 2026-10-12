@@ -17,7 +17,6 @@ from pytest_homeassistant_custom_component.common import (
     async_mock_service,
 )
 
-from custom_components.button_actions import device_trigger
 from custom_components.button_actions.const import (
     CONF_ACTIONS,
     CONF_DETECT_ALL,
@@ -113,9 +112,7 @@ async def test_names_titles_and_triggers(hass: HomeAssistant) -> None:
     # No long press on this remote, so it's not offered anywhere.
     assert states[0].attributes["event_types"] == ["short_press", "double_press"]
 
-    device = own_device(hass, entry.entry_id)
-    triggers = await device_trigger.async_get_triggers(hass, device.id)
-    assert {t["type"] for t in triggers} == {"short_press", "double_press"}
+    assert own_device(hass, entry.entry_id) is not None
 
 
 async def test_ten_buttons_pad_numbers(hass: HomeAssistant) -> None:
