@@ -112,7 +112,7 @@ async def test_names_titles_and_triggers(hass: HomeAssistant) -> None:
     # No long press on this remote, so it's not offered anywhere.
     assert states[0].attributes["event_types"] == ["short_press", "double_press"]
 
-    assert own_device(hass, entry.entry_id) is None
+    assert own_device(hass, entry.entry_id) is not None
 
 
 async def test_ten_buttons_pad_numbers(hass: HomeAssistant) -> None:

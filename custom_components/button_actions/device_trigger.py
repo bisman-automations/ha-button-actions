@@ -7,7 +7,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components.device_automation import DEVICE_TRIGGER_BASE_SCHEMA
 from homeassistant.components.homeassistant.triggers import event as event_trigger
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import (
     CONF_DEVICE_ID,
     CONF_DOMAIN,
@@ -35,11 +35,16 @@ TRIGGER_SCHEMA = DEVICE_TRIGGER_BASE_SCHEMA.extend(
 
 
 def _entries_for_device(hass: HomeAssistant, device_id: str) -> list[ConfigEntry]:
-    """Remotes with triggers on this physical device."""
+    """Remotes with triggers on this service device or its linked source."""
     return [
         entry
         for entry in hass.config_entries.async_loaded_entries(DOMAIN)
-        if entry.runtime_data.linked_device_id == device_id
+        if device_id
+        in (
+            entry.runtime_data.device_id(),
+            entry.runtime_data.linked_device_id,
+            entry.data.get(CONF_LEGACY_DEVICE_ID),
+        )
     ]
 
 
@@ -76,7 +81,13 @@ async def async_attach_trigger(
             (
                 candidate
                 for candidate in hass.config_entries.async_entries(DOMAIN)
-                if candidate.data.get(CONF_LEGACY_DEVICE_ID) == config[CONF_DEVICE_ID]
+                if config[CONF_DEVICE_ID]
+                in (
+                    candidate.runtime_data.device_id()
+                    if candidate.state is ConfigEntryState.LOADED
+                    else None,
+                    candidate.data.get(CONF_LEGACY_DEVICE_ID),
+                )
             ),
             None,
         )

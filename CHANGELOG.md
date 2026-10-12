@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Button Actions is now a service integration and no longer creates a device for each remote. Linked remotes do not create duplicate gesture event entities; use a standard Event trigger filtered by remote name, button and gesture. Legacy remote devices are removed during setup.
+- Button Actions is now a service integration. Each remote has a service device linked to its physical source, which provides its device triggers; linked remotes don't add duplicate gesture event entities to the physical device.
 
 ## [1.8.0] - 2026-10-11
 

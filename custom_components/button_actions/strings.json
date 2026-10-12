@@ -50,7 +50,7 @@
       },
       "reconfigure": {
         "title": "Reconfigure remote",
-        "description": "Rename this remote, change what it supports, or pick the device its buttons belong to. Button Actions uses its events without creating another device; use a standard Event trigger for gestures. Picking a Lutron Caséta Pico instead reads presses straight from Lutron; every button keeps its actions. Otherwise you'll check how its event types are used next.",
+        "description": "Rename this remote, change what it supports, or pick the device its buttons belong to. Button Actions creates a linked service device for triggers without adding duplicate gesture entities to the physical device. Picking a Lutron Caséta Pico instead reads presses straight from Lutron; every button keeps its actions. Otherwise you'll check how its event types are used next.",
         "data": {
           "name": "Name",
           "device_id": "Device",

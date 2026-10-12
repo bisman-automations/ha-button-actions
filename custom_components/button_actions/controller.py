@@ -248,7 +248,7 @@ class ButtonActionsController:
         self._device_id: str | None = entry.data.get(CONF_DEVICE_ID)
         self.buttons = buttons_from_entry(entry)
         self.linked_device_id = linked_device_id(hass, entry, self.buttons)
-        self.legacy_device_id: str | None = entry.data.get(CONF_LEGACY_DEVICE_ID)
+        self.own_device_id: str | None = None
         # Event-entity remotes: entity_id -> (slot, detector)
         # Lutron remotes: slot -> (slot, detector)
         self._detectors: dict[str, tuple[str, GestureDetector]] = {}
@@ -435,8 +435,8 @@ class ButtonActionsController:
             GESTURE_EVENT,
             {
                 **(
-                    {CONF_DEVICE_ID: self.linked_device_id}
-                    if self.linked_device_id
+                    {CONF_DEVICE_ID: self.device_id()}
+                    if self.device_id()
                     else {}
                 ),
                 "linked_device_id": self.linked_device_id,
@@ -446,6 +446,14 @@ class ButtonActionsController:
                 "gesture": gesture,
             },
         )
+
+    @callback
+    def device_id(self) -> str | None:
+        """The service device that owns this remote's triggers."""
+        if self.own_device_id:
+            return self.own_device_id
+        device = own_device(self.hass, self.entry.entry_id)
+        return device.id if device else self.entry.data.get(CONF_LEGACY_DEVICE_ID)
 
     @callback
     def _handle_lutron_event(self, event: Event) -> None:
