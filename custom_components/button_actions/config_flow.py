@@ -42,7 +42,6 @@ from .const import (
     CONF_EVENT_ROLES,
     CONF_HOLD_MS,
     CONF_LAYOUT,
-    CONF_LEGACY_DEVICE_ID,
     CONF_PICO_BUTTONS,
     CONF_PRESS_EVENT,
     CONF_RELEASE_EVENT,
@@ -995,11 +994,6 @@ class ButtonActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         warns if the flow reloads it as well. A remote that isn't loaded has no
         listener, so the flow reloads it.
         """
-        if legacy_device_id := entry.data.get(CONF_LEGACY_DEVICE_ID):
-            changes["data"] = {
-                **changes.get("data", entry.data),
-                CONF_LEGACY_DEVICE_ID: legacy_device_id,
-            }
         if entry.state is ConfigEntryState.LOADED:
             return self.async_update_and_abort(entry, **changes)
         return self.async_update_reload_and_abort(entry, **changes)

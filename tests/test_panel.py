@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -29,7 +30,6 @@ from custom_components.button_actions.const import (
 from custom_components.button_actions.panel import (
     _panel_config,
     async_register_panel,
-    async_unregister_panel,
     websocket_get_panel_config,
 )
 
@@ -143,14 +143,48 @@ async def test_panel_registration_is_admin_only_and_idempotent() -> None:
     hass.http.async_register_static_paths.assert_awaited_once()
 
 
-async def test_panel_unregistration() -> None:
-    """Remove the sidebar item when the last remote unloads."""
-    hass = SimpleNamespace(
-        data={"button_actions_panel_registered": True},
-        config=SimpleNamespace(components={"frontend"}),
-    )
+async def test_reloading_a_remote_keeps_the_panel(hass: HomeAssistant) -> None:
+    """Editing a remote reloads it; the page the user is on must stay."""
+    entry = _remote(hass)
     with patch("homeassistant.components.frontend.async_remove_panel") as remove:
-        await async_unregister_panel(hass)
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        assert await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+    remove.assert_not_called()
 
-    remove.assert_called_once_with(hass, "button-actions", warn_if_unknown=False)
-    assert hass.data["button_actions_panel_registered"] is False
+
+async def test_panel_subscription_reports_changes(
+    hass: HomeAssistant, hass_ws_client
+) -> None:
+    """The dashboard hears about remote edits and sources going unavailable."""
+    entry = _remote(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    client = await hass_ws_client(hass)
+    await client.send_json_auto_id({"type": "button_actions/panel/subscribe"})
+    assert (await client.receive_json())["success"]
+
+    async def drain() -> int:
+        count = 0
+        while True:
+            try:
+                async with asyncio.timeout(0.1):
+                    await client.receive_json()
+            except TimeoutError:
+                return count
+            count += 1
+
+    # Renaming reloads the remote; the dashboard hears about it.
+    hass.config_entries.async_update_entry(entry, title="Study Remote")
+    await hass.async_block_till_done()
+    assert await drain() >= 1
+
+    # A press changes the state but not availability: nothing to report.
+    hass.states.async_set("event.office_remote_button", "2026-10-16T12:00:00")
+    await hass.async_block_till_done()
+    assert await drain() == 0
+
+    hass.states.async_set("event.office_remote_button", "unavailable")
+    await hass.async_block_till_done()
+    assert await drain() == 1

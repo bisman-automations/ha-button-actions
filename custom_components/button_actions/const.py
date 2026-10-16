@@ -158,7 +158,6 @@ GESTURE_EVENT: Final = "button_actions_gesture"
 
 # Entry data: the physical device a remote was set up from.
 CONF_SOURCE_DEVICE: Final = "source_device"
-CONF_LEGACY_DEVICE_ID: Final = "legacy_device_id"
 
 # Entry data: the blueprint automation a remote was imported from.
 CONF_SOURCE_AUTOMATION: Final = "source_automation"

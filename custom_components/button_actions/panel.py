@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from pathlib import Path
@@ -11,8 +10,18 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.config_entries import ConfigEntryState
-from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import (
+    SIGNAL_CONFIG_ENTRY_CHANGED,
+    ConfigEntry,
+    ConfigEntryChange,
+)
+from homeassistant.const import STATE_UNAVAILABLE
+from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, State, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.event import (
+    EventStateChangedData,
+    async_track_state_change_event,
+)
 
 from .const import (
     CONF_DETECT_ALL,
@@ -43,10 +52,7 @@ STATIC_URL = "/button_actions_static"
 PANEL_COMPONENT = "button-actions-panel"
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 _PANEL_REGISTERED = f"{DOMAIN}_panel_registered"
-_STATIC_REGISTERED = f"{DOMAIN}_panel_static_registered"
-_PANEL_VERSION = f"{DOMAIN}_panel_version"
 _API_REGISTERED = f"{DOMAIN}_panel_api_registered"
-_PANEL_LOCK = f"{DOMAIN}_panel_lock"
 
 
 def _version() -> str:
@@ -60,6 +66,7 @@ def async_setup_panel_api(hass: HomeAssistant) -> None:
     if hass.data.get(_API_REGISTERED):
         return
     websocket_api.async_register_command(hass, websocket_get_panel_config)
+    websocket_api.async_register_command(hass, websocket_subscribe_panel)
     hass.data[_API_REGISTERED] = True
 
 
@@ -71,6 +78,73 @@ async def websocket_get_panel_config(
 ) -> None:
     """Return a safe summary of configured remotes for administrators."""
     connection.send_result(msg["id"], _panel_config(hass))
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/panel/subscribe"})
+@websocket_api.require_admin
+@callback
+def websocket_subscribe_panel(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Tell the dashboard when what it shows may have changed.
+
+    That's a remote being added, edited, reloaded or removed, or a button's
+    source entity becoming available or unavailable. The message carries no
+    data; the dashboard fetches the summary again.
+    """
+    unsub_states: CALLBACK_TYPE | None = None
+
+    @callback
+    def notify() -> None:
+        connection.send_message(websocket_api.event_message(msg["id"], {}))
+
+    @callback
+    def source_changed(event: Event[EventStateChangedData]) -> None:
+        if _unavailable(event.data["old_state"]) != _unavailable(
+            event.data["new_state"]
+        ):
+            notify()
+
+    @callback
+    def track_sources() -> None:
+        nonlocal unsub_states
+        if unsub_states is not None:
+            unsub_states()
+            unsub_states = None
+        entity_ids = {
+            entity_id
+            for entry in hass.config_entries.async_entries(DOMAIN)
+            for button in buttons_from_entry(entry)
+            for entity_id in button.entities
+        }
+        if entity_ids:
+            unsub_states = async_track_state_change_event(
+                hass, entity_ids, source_changed
+            )
+
+    @callback
+    def entry_changed(change: ConfigEntryChange, entry: ConfigEntry) -> None:
+        if entry.domain == DOMAIN:
+            track_sources()
+            notify()
+
+    unsub_entries = async_dispatcher_connect(
+        hass, SIGNAL_CONFIG_ENTRY_CHANGED, entry_changed
+    )
+    track_sources()
+
+    @callback
+    def unsubscribe() -> None:
+        unsub_entries()
+        if unsub_states is not None:
+            unsub_states()
+
+    connection.subscriptions[msg["id"]] = unsubscribe
+    connection.send_result(msg["id"])
+
+
+def _unavailable(state: State | None) -> bool:
+    return state is None or state.state == STATE_UNAVAILABLE
 
 
 def _panel_config(hass: HomeAssistant) -> dict[str, list[dict[str, Any]]]:
@@ -136,55 +210,34 @@ def _panel_config(hass: HomeAssistant) -> dict[str, list[dict[str, Any]]]:
 
 
 async def async_register_panel(hass: HomeAssistant) -> None:
-    """Register the admin-only sidebar panel and its static frontend asset."""
-    async with hass.data.setdefault(_PANEL_LOCK, asyncio.Lock()):
-        if hass.data.get(_PANEL_REGISTERED):
-            return
-        if "frontend" not in hass.config.components or hass.http is None:
-            _LOGGER.debug("Frontend not loaded; skipping the Button Actions panel")
-            return
+    """Register the admin-only sidebar panel and its static frontend asset.
 
-        from homeassistant.components import panel_custom
+    Called once from async_setup; the panel stays for the whole run, and shows
+    an empty state when no remotes are left.
+    """
+    if hass.data.get(_PANEL_REGISTERED):
+        return
+    if "frontend" not in hass.config.components or hass.http is None:
+        _LOGGER.debug("Frontend not loaded; skipping the Button Actions panel")
+        return
 
-        if not hass.data.get(_STATIC_REGISTERED):
-            version = await hass.async_add_executor_job(_version)
-            await hass.http.async_register_static_paths(
-                [StaticPathConfig(STATIC_URL, str(FRONTEND_DIR), cache_headers=False)]
-            )
-            hass.data[_PANEL_VERSION] = version
-            hass.data[_STATIC_REGISTERED] = True
+    from homeassistant.components import panel_custom
 
-        await panel_custom.async_register_panel(
-            hass,
-            frontend_url_path=PANEL_URL_PATH,
-            webcomponent_name=PANEL_COMPONENT,
-            sidebar_title="Button Actions",
-            sidebar_icon="mdi:gesture-tap-button",
-            module_url=(
-                f"{STATIC_URL}/button-actions-panel.js?v={hass.data[_PANEL_VERSION]}"
-            ),
-            require_admin=True,
-            config={},
-        )
-        hass.data[_PANEL_REGISTERED] = True
-
-
-async def async_unregister_panel(
-    hass: HomeAssistant, *, excluding_entry_id: str | None = None
-) -> None:
-    """Remove the panel when the last Button Actions remote is unloaded."""
-    async with hass.data.setdefault(_PANEL_LOCK, asyncio.Lock()):
-        if not hass.data.get(_PANEL_REGISTERED):
-            return
-        if excluding_entry_id is not None and any(
-            entry.entry_id != excluding_entry_id
-            and entry.state
-            in (ConfigEntryState.LOADED, ConfigEntryState.SETUP_IN_PROGRESS)
-            for entry in hass.config_entries.async_entries(DOMAIN)
-        ):
-            return
-        if "frontend" in hass.config.components:
-            from homeassistant.components import frontend
-
-            frontend.async_remove_panel(hass, PANEL_URL_PATH, warn_if_unknown=False)
-        hass.data[_PANEL_REGISTERED] = False
+    version = await hass.async_add_executor_job(_version)
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(STATIC_URL, str(FRONTEND_DIR), cache_headers=False)]
+    )
+    # Mark it registered before awaiting the panel, so a second call can't
+    # register the static path twice.
+    hass.data[_PANEL_REGISTERED] = True
+    await panel_custom.async_register_panel(
+        hass,
+        frontend_url_path=PANEL_URL_PATH,
+        webcomponent_name=PANEL_COMPONENT,
+        sidebar_title="Button Actions",
+        sidebar_icon="mdi:gesture-tap-button",
+        # The version busts the browser cache after an update.
+        module_url=f"{STATIC_URL}/button-actions-panel.js?v={version}",
+        require_admin=True,
+        config={},
+    )

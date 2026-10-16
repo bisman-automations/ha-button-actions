@@ -24,7 +24,6 @@ from custom_components.button_actions.const import (
     CONF_DOUBLE_MS,
     CONF_ENTITIES,
     CONF_HOLD_MS,
-    CONF_LEGACY_DEVICE_ID,
     CONF_REPEAT,
     CONF_REPEAT_MS,
     CONF_SLOT,
@@ -47,9 +46,13 @@ def _is_linked(hass: HomeAssistant, own: dr.DeviceEntry, device_id: str) -> bool
     if not SHARED_IDENTIFIERS:
         return own.via_device_id == device_id
     device = dr.async_get(hass).async_get(device_id)
-    return device is not None and own.via_device_id is None and (
-        {identifier for identifier in device.identifiers if identifier[0] != DOMAIN}
-        <= own.identifiers
+    return (
+        device is not None
+        and own.via_device_id is None
+        and (
+            {identifier for identifier in device.identifiers if identifier[0] != DOMAIN}
+            <= own.identifiers
+        )
     )
 
 
@@ -301,49 +304,6 @@ async def test_unlinked_legacy_service_device_is_preserved(
     assert own is not None and own.id == old.id
     ours = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
     assert len(ours) == 2 and {e.device_id for e in ours} == {old.id}
-
-
-async def test_legacy_device_trigger_resolves_after_service_device_recreation(
-    hass: HomeAssistant,
-) -> None:
-    """Triggers saved before the service-only release still resolve."""
-    _device, entity_ids = _hub(hass, count=1)
-    entry = _remote(hass, entity_ids)
-    legacy_device_id = "removed-service-device"
-    hass.config_entries.async_update_entry(
-        entry,
-        data={**entry.data, CONF_LEGACY_DEVICE_ID: legacy_device_id},
-    )
-    assert await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
-
-    own = own_device(hass, entry.entry_id)
-    assert own is not None and own.id != legacy_device_id
-    calls = async_mock_service(hass, "test", "automation")
-    assert await async_setup_component(
-        hass,
-        "automation",
-        {
-            "automation": [
-                {
-                    "triggers": [
-                        {
-                            "trigger": "device",
-                            "domain": DOMAIN,
-                            "device_id": legacy_device_id,
-                            "type": "short_press",
-                            "subtype": "button_1",
-                        }
-                    ],
-                    "actions": [{"action": "test.automation"}],
-                }
-            ]
-        },
-    )
-    _fire(hass, entity_ids[0], "initial_press")
-    _fire(hass, entity_ids[0], "short_release")
-    await hass.async_block_till_done(wait_background_tasks=True)
-    assert len(calls) == 1
 
 
 async def test_event_trigger_is_scoped_to_remote(hass: HomeAssistant) -> None:

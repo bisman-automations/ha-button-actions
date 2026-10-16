@@ -35,7 +35,6 @@ from .const import (
     CONF_ENTITIES,
     CONF_EVENT_ROLES,
     CONF_HOLD_MS,
-    CONF_LEGACY_DEVICE_ID,
     CONF_PRESS_EVENT,
     CONF_RELEASE_EVENT,
     CONF_REPEAT,
@@ -434,11 +433,7 @@ class ButtonActionsController:
         self.hass.bus.async_fire(
             GESTURE_EVENT,
             {
-                **(
-                    {CONF_DEVICE_ID: self.device_id()}
-                    if self.device_id()
-                    else {}
-                ),
+                **({CONF_DEVICE_ID: self.device_id()} if self.device_id() else {}),
                 "linked_device_id": self.linked_device_id,
                 "entry_id": self.entry.entry_id,
                 "remote": self.entry.title,
@@ -453,7 +448,7 @@ class ButtonActionsController:
         if self.own_device_id:
             return self.own_device_id
         device = own_device(self.hass, self.entry.entry_id)
-        return device.id if device else self.entry.data.get(CONF_LEGACY_DEVICE_ID)
+        return device.id if device else None
 
     @callback
     def _handle_lutron_event(self, event: Event) -> None:
