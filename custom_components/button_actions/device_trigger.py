@@ -18,7 +18,7 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.helpers.trigger import TriggerActionType, TriggerInfo
 from homeassistant.helpers.typing import ConfigType
 
-from .const import CONF_LEGACY_DEVICE_ID, DOMAIN, GESTURE_EVENT, GESTURES, SLOTS
+from .const import DOMAIN, GESTURE_EVENT, GESTURES, SLOTS
 from .controller import buttons_from_entry, supported_gestures
 
 CONF_SUBTYPE = "subtype"
@@ -43,7 +43,6 @@ def _entries_for_device(hass: HomeAssistant, device_id: str) -> list[ConfigEntry
         in (
             entry.runtime_data.device_id(),
             entry.runtime_data.linked_device_id,
-            entry.data.get(CONF_LEGACY_DEVICE_ID),
         )
     ]
 
@@ -81,13 +80,8 @@ async def async_attach_trigger(
             (
                 candidate
                 for candidate in hass.config_entries.async_entries(DOMAIN)
-                if config[CONF_DEVICE_ID]
-                in (
-                    candidate.runtime_data.device_id()
-                    if candidate.state is ConfigEntryState.LOADED
-                    else None,
-                    candidate.data.get(CONF_LEGACY_DEVICE_ID),
-                )
+                if candidate.state is ConfigEntryState.LOADED
+                and config[CONF_DEVICE_ID] == candidate.runtime_data.device_id()
             ),
             None,
         )

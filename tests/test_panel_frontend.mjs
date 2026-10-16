@@ -262,7 +262,7 @@ test("flow forms use Home Assistant's native visual selectors and preserve value
   });
   assert.equal(formElement.context.domain, "button_actions");
   assert.equal(formElement.error.short_press, "invalid_action");
-  assert.equal(formElement.computeError(null, "invalid_action"), "One or more action lists are invalid.");
+  assert.equal(formElement.computeError("invalid_action", schema[1]), "One or more action lists are invalid.");
 });
 
 test("visual form changes are retained as flow submission data", async () => {

@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2026-10-16
+
+### Fixed
+
+- The sidebar dashboard no longer disappears for a moment whenever a remote is edited. It's registered once when Button Actions starts instead of with each remote, so saving a change from the dashboard (which reloads the remote) no longer removes the page you're on.
+- The version shown in Home Assistant and HACS is correct again; 1.9.0 still reported 1.8.0.
+- A remote reconfigured or button edited from the dashboard now reports "Configuration saved" instead of "Configuration not changed".
+
+### Changed
+
+- The dashboard updates live when a remote is added, edited or removed, or a button's source becomes unavailable or available again. Open sections and the search text are kept.
+- Dashboard popups use the integration's own titles, descriptions, field labels, help text and error messages, the same as Settings → Devices & services.
+- On phones, the dashboard has the sidebar menu button.
+- Removed an unused fallback for device triggers that nothing ever set.
+
 ## [1.9.0] - 2026-10-12
 
 ### Changed
@@ -181,7 +196,10 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.4...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.9.1...HEAD
+[1.9.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.9.0...v1.9.1
+[1.9.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.8.0...v1.9.0
+[1.8.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.4...v1.8.0
 [1.7.4]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.1...v1.7.2

@@ -1,17 +1,46 @@
+const DOMAIN = "button_actions";
+
+// Where each kind of flow keeps its text in the integration's translations.
+const TRANSLATION_PREFIX = {
+  config: `component.${DOMAIN}.config`,
+  options: `component.${DOMAIN}.options`,
+  subentry: `component.${DOMAIN}.config_subentries.button`,
+};
+
 class ButtonActionsPanel extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
+    if (this._menu) this._menu.hass = hass;
     if (!this._loaded) {
       this._loaded = true;
       this._load();
+      this._subscribe();
+      this._loadTranslations();
     }
   }
 
-  async _load() {
+  set narrow(narrow) {
+    this._narrow = narrow;
+    if (this._menu) this._menu.narrow = narrow;
+  }
+
+  connectedCallback() {
+    if (this._hass && !this._unsub) this._subscribe();
+  }
+
+  disconnectedCallback() {
+    if (this._unsub) {
+      this._unsub.then((unsub) => unsub()).catch(() => {});
+      this._unsub = null;
+    }
+    clearTimeout(this._refreshTimer);
+  }
+
+  async _load({ quiet = false } = {}) {
     if (!this.shadowRoot) {
       this.attachShadow({ mode: "open" });
     }
-    this._renderLoading();
+    if (!quiet) this._renderLoading();
     try {
       const result = await this._hass.callWS({
         type: "button_actions/panel/config",
@@ -19,8 +48,71 @@ class ButtonActionsPanel extends HTMLElement {
       this._remotes = result.remotes;
       this._render();
     } catch (error) {
-      this._renderError(error);
+      if (!quiet) this._renderError(error);
     }
+  }
+
+  // Refresh when a remote is added, edited, reloaded or removed, or a button's
+  // source becomes (un)available, so the page never shows stale settings.
+  _subscribe() {
+    if (this._unsub || !this._hass?.connection) return;
+    this._unsub = this._hass.connection
+      .subscribeMessage(() => this._scheduleRefresh(), {
+        type: "button_actions/panel/subscribe",
+      })
+      .catch((error) => {
+        this._unsub = null;
+        console.error("Button Actions live updates unavailable", error);
+      });
+  }
+
+  _scheduleRefresh() {
+    clearTimeout(this._refreshTimer);
+    this._refreshTimer = setTimeout(() => this._load({ quiet: true }), 300);
+  }
+
+  async _loadTranslations() {
+    if (!this._hass?.loadBackendTranslation) return;
+    const categories = ["config", "options", "config_subentries"];
+    const results = await Promise.allSettled(
+      categories.map((category) =>
+        this._hass.loadBackendTranslation(category, DOMAIN),
+      ),
+    );
+    const localize = results
+      .filter((result) => result.status === "fulfilled" && result.value)
+      .map((result) => result.value);
+    if (localize.length) this._localize = localize.at(-1);
+  }
+
+  // The integration's own text for a key, or undefined if it has none.
+  _t(key, placeholders) {
+    const localize = this._localize || this._hass?.localize;
+    if (!localize) return undefined;
+    const text = localize(key, placeholders || {});
+    return text && text !== key ? text : undefined;
+  }
+
+  _flowKey(suffix) {
+    const prefix = TRANSLATION_PREFIX[this._activeFlow?.kind];
+    return prefix ? `${prefix}.${suffix}` : "";
+  }
+
+  // Just enough Markdown for the integration's descriptions: paragraphs,
+  // bullet lists and **bold**.
+  _markdown(text) {
+    return String(text)
+      .split(/\n{2,}/)
+      .map((block) => {
+        const lines = block.split("\n");
+        const inline = (line) =>
+          this._escape(line).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+        if (lines.every((line) => /^\s*[-*] /.test(line))) {
+          return `<ul>${lines.map((line) => `<li>${inline(line.replace(/^\s*[-*] /, ""))}</li>`).join("")}</ul>`;
+        }
+        return `<p>${lines.map(inline).join("<br>")}</p>`;
+      })
+      .join("");
   }
 
   _escape(value) {
@@ -36,15 +128,36 @@ class ButtonActionsPanel extends HTMLElement {
     });
   }
 
+  // The page lives in #content so a refresh never touches an open dialog.
+  _setContent(html) {
+    const content = this.shadowRoot.querySelector?.("#content");
+    if (content) {
+      content.innerHTML = html;
+    } else {
+      this.shadowRoot.innerHTML = `<style>${this._styles()}</style><div id="content">${html}</div>`;
+    }
+    this._attachMenu();
+  }
+
+  // Home Assistant's sidebar toggle, needed on phones where the sidebar is hidden.
+  _attachMenu() {
+    const slot = this.shadowRoot.querySelector?.("#menu");
+    if (!slot || typeof document === "undefined") return;
+    if (!this._menu) {
+      this._menu = document.createElement("ha-menu-button");
+    }
+    this._menu.hass = this._hass;
+    this._menu.narrow = this._narrow;
+    slot.append(this._menu);
+  }
+
   _renderLoading() {
-    this.shadowRoot.innerHTML = `
-      <style>${this._styles()}</style>
-      <main><ha-card><div class="message">Loading Button Actions…</div></ha-card></main>`;
+    this._setContent(`
+      <main><ha-card><div class="message">Loading Button Actions…</div></ha-card></main>`);
   }
 
   _renderError(error) {
-    this.shadowRoot.innerHTML = `
-      <style>${this._styles()}</style>
+    this._setContent(`
       <main>
         <ha-card>
           <div class="message error">
@@ -55,7 +168,7 @@ class ButtonActionsPanel extends HTMLElement {
             </button>
           </div>
         </ha-card>
-      </main>`;
+      </main>`);
     this._bindRoutes();
   }
 
@@ -73,13 +186,19 @@ class ButtonActionsPanel extends HTMLElement {
     const cards = remotes
       .map((remote) => this._remoteCard(remote))
       .join("");
+    // Keep what the user had open and typed across live refreshes.
+    const open = new Set(
+      [...(this.shadowRoot.querySelectorAll?.(".remote-collapse[open]") || [])].map(
+        (details) => details.dataset.entryId,
+      ),
+    );
+    const query = this.shadowRoot.querySelector?.('input[type="search"]')?.value || "";
 
-    this.shadowRoot.innerHTML = `
-      <style>${this._styles()}</style>
+    this._setContent(`
       <main>
         <header>
           <div>
-            <p class="eyebrow">REMOTE CONFIGURATION</p>
+            <div class="title-row"><span id="menu"></span><p class="eyebrow">REMOTE CONFIGURATION</p></div>
             <h1>Button Actions</h1>
             <p class="intro">See every remote and button in one place. Configure remotes, timing, and button actions in focused popups without leaving this dashboard.</p>
           </div>
@@ -116,10 +235,17 @@ class ButtonActionsPanel extends HTMLElement {
                  </div>
                </ha-card>`
         }
-      </main>`;
+      </main>`);
     this._bindRoutes();
+    this.shadowRoot.querySelectorAll?.(".remote-collapse").forEach((details) => {
+      if (open.has(details.dataset.entryId)) details.open = true;
+    });
     const search = this.shadowRoot.querySelector('input[type="search"]');
-    search?.addEventListener("input", () => this._filter(search.value));
+    if (search) {
+      search.value = query;
+      if (query) this._filter(query);
+      search.addEventListener("input", () => this._filter(search.value));
+    }
   }
 
   _remoteCard(remote) {
@@ -134,7 +260,7 @@ class ButtonActionsPanel extends HTMLElement {
       <ha-card class="remote" data-search="${this._searchText(
         [remote.title, remote.source, ...remote.buttons.flatMap((button) => [button.title, ...button.entities])].join(" "),
       )}">
-        <details class="remote-collapse">
+        <details class="remote-collapse" data-entry-id="${this._escape(remote.entry_id)}">
           <summary class="remote-header">
           <div class="remote-heading">
             <div class="remote-icon"><ha-icon icon="mdi:remote"></ha-icon></div>
@@ -377,21 +503,37 @@ class ButtonActionsPanel extends HTMLElement {
       return;
     }
     if (step.type === "abort") {
+      const message =
+        this._t(this._flowKey(`abort.${step.reason}`), step.description_placeholders) ||
+        this._t(`${TRANSLATION_PREFIX.config}.abort.${step.reason}`, step.description_placeholders) ||
+        step.reason.replaceAll("_", " ");
+      // Reconfiguring a remote or editing a button ends in an abort that
+      // reports success; it isn't a failure.
+      const saved = step.reason.endsWith("_successful");
       this._activeFlow = null;
+      if (saved) await this._load({ quiet: true });
       this._renderDialog(
-        "Configuration not changed",
-        `<p>${this._escape(step.reason.replaceAll("_", " "))}</p>`,
-        `<button class="primary" data-action="dialog-close">Close</button>`,
+        saved ? "Configuration saved" : "Configuration not changed",
+        `<p class="${saved ? "dialog-success" : ""}">${this._escape(message)}</p>`,
+        `<button class="primary" data-action="dialog-close">${saved ? "Done" : "Close"}</button>`,
       );
       return;
     }
     if (step.type === "menu") {
+      const stepKey = `step.${step.step_id}`;
+      const placeholders = step.description_placeholders;
       const options = Array.isArray(step.menu_options)
-        ? step.menu_options.map((option) => [option, this._menuLabel(option)])
+        ? step.menu_options.map((option) => [
+            option,
+            this._t(this._flowKey(`${stepKey}.menu_options.${option}`), placeholders) ||
+              this._menuLabel(option),
+          ])
         : Object.entries(step.menu_options);
+      const description =
+        this._t(this._flowKey(`${stepKey}.description`), placeholders);
       this._renderDialog(
-        this._activeFlow.title,
-        `<p class="dialog-description">Choose how you want to continue.</p>
+        this._t(this._flowKey(`${stepKey}.title`), placeholders) || this._activeFlow.title,
+        `<div class="dialog-description">${description ? this._markdown(description) : "<p>Choose how you want to continue.</p>"}</div>
          <div class="flow-menu">${options
            .map(
              ([option, label]) =>
@@ -405,7 +547,8 @@ class ButtonActionsPanel extends HTMLElement {
     if (step.type === "form") {
       this._flowInput = this._initialFlowData(step.data_schema);
       this._renderDialog(
-        this._activeFlow.title,
+        this._t(this._flowKey(`step.${step.step_id}.title`), step.description_placeholders) ||
+          this._activeFlow.title,
         this._renderFlowForm(step),
         `<button class="secondary" data-action="dialog-close">Cancel</button>
          <button class="primary" data-action="flow-continue">Continue</button>`,
@@ -465,8 +608,11 @@ class ButtonActionsPanel extends HTMLElement {
   }
 
   _renderFlowForm(step) {
-    return `<p class="dialog-description">${this._escape(this._stepDescription(step))}</p>
-      ${step.errors?.base ? `<p class="field-error">${this._escape(this._errorLabel(step.errors.base))}</p>` : ""}
+    const description =
+      this._t(this._flowKey(`step.${step.step_id}.description`), step.description_placeholders) ||
+      this._stepDescription(step);
+    return `<div class="dialog-description">${this._markdown(description)}</div>
+      ${step.errors?.base ? `<p class="field-error">${this._escape(this._errorLabel(step.errors.base, step))}</p>` : ""}
       <ha-form id="dashboard-flow-form"></ha-form>`;
   }
 
@@ -491,8 +637,14 @@ class ButtonActionsPanel extends HTMLElement {
     form.schema = step.data_schema;
     form.data = this._flowInput;
     form.error = step.errors || undefined;
-    form.computeLabel = (field) => this._fieldLabel(field.name);
-    form.computeError = (_field, error) => this._errorLabel(error);
+    const stepKey = `step.${step.step_id}`;
+    const placeholders = step.description_placeholders;
+    form.computeLabel = (field) =>
+      this._t(this._flowKey(`${stepKey}.data.${field.name}`), placeholders) ||
+      this._fieldLabel(field.name);
+    form.computeHelper = (field) =>
+      this._t(this._flowKey(`${stepKey}.data_description.${field.name}`), placeholders);
+    form.computeError = (error) => this._errorLabel(error, step);
     form.context = {
       handler: step.handler,
       domain: "button_actions",
@@ -527,7 +679,11 @@ class ButtonActionsPanel extends HTMLElement {
     return descriptions[step.step_id] || "Complete the fields below and continue.";
   }
 
-  _errorLabel(error) {
+  _errorLabel(error, step) {
+    const translated =
+      this._t(this._flowKey(`error.${error}`), step?.description_placeholders) ||
+      this._t(`${TRANSLATION_PREFIX.config}.error.${error}`, step?.description_placeholders);
+    if (translated) return translated;
     const labels = {
       invalid_action: "One or more action lists are invalid.",
       no_entities: "Select at least one event entity.",
@@ -646,6 +802,10 @@ class ButtonActionsPanel extends HTMLElement {
       h1 { margin: 2px 0 8px; font-size: 32px; font-weight: 500; }
       h2 { margin: 0; font-size: 19px; font-weight: 500; }
       p { margin: 0; }
+      .title-row { display: flex; align-items: center; gap: 4px; margin-left: -8px; }
+      #menu:empty { display: none; }
+      .dialog-description ul { margin: 8px 0; padding-left: 20px; }
+      .dialog-description p + p { margin-top: 8px; }
       .eyebrow { color: var(--secondary-text-color); font-size: 11px; letter-spacing: .12em; font-weight: 600; }
       .intro { color: var(--secondary-text-color); max-width: 680px; line-height: 1.5; }
       ha-card { display: block; background: var(--card-background-color); border-radius: 12px; }
