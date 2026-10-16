@@ -8,6 +8,7 @@ from types import MappingProxyType
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.typing import ConfigType
@@ -30,7 +31,7 @@ from .const import (
 )
 from .controller import ButtonActionsController
 from .issues import async_delete_issues, async_track_issues
-from .panel import async_register_panel, async_setup_panel_api, async_unregister_panel
+from .panel import async_register_panel, async_setup_panel_api
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,9 +43,18 @@ type ButtonActionsConfigEntry = ConfigEntry[ButtonActionsController]
 _LEGACY_BUTTONS = "buttons"
 
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the Button Actions dashboard API."""
+    """Set up the Button Actions dashboard and its API.
+
+    The sidebar panel is registered here, once, rather than with each remote,
+    so reloading a remote (which every edit from the dashboard does) doesn't
+    briefly remove the page the user is on.
+    """
     async_setup_panel_api(hass)
+    await async_register_panel(hass)
     return True
 
 
@@ -67,7 +77,6 @@ async def async_setup_entry(
     await controller.async_start()
     async_track_issues(hass, entry, controller)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
-    await async_register_panel(hass)
     return True
 
 
@@ -77,10 +86,7 @@ async def async_unload_entry(
     """Unload one remote."""
     await entry.runtime_data.async_stop()
     async_delete_issues(hass, entry.entry_id)
-    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unloaded:
-        await async_unregister_panel(hass, excluding_entry_id=entry.entry_id)
-    return unloaded
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def _async_update_listener(
