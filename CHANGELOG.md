@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The sidebar dashboard no longer disappears for a moment whenever a remote is edited. It's registered once when Button Actions starts instead of with each remote, so saving a change from the dashboard (which reloads the remote) no longer removes the page you're on.
 - The version shown in Home Assistant and HACS is correct again; 1.9.0 still reported 1.8.0.
 - A remote reconfigured or button edited from the dashboard now reports "Configuration saved" instead of "Configuration not changed".
+- Pico remotes always showed as available on the dashboard. They now show **Source unavailable** when their Pico is gone or Lutron Caséta isn't running.
 
 ### Changed
 

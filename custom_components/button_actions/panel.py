@@ -14,9 +14,11 @@ from homeassistant.config_entries import (
     SIGNAL_CONFIG_ENTRY_CHANGED,
     ConfigEntry,
     ConfigEntryChange,
+    ConfigEntryState,
 )
-from homeassistant.const import STATE_UNAVAILABLE
+from homeassistant.const import CONF_DEVICE_ID, STATE_UNAVAILABLE
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, State, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.event import (
     EventStateChangedData,
@@ -40,7 +42,9 @@ from .const import (
     DOMAIN,
     GESTURES,
     LAYOUT_PICO,
+    LUTRON_DOMAIN,
     SOURCE_EVENT_ENTITY,
+    SOURCE_LUTRON,
     SUBENTRY_BUTTON,
 )
 from .controller import buttons_from_entry
@@ -124,7 +128,8 @@ def websocket_subscribe_panel(
 
     @callback
     def entry_changed(change: ConfigEntryChange, entry: ConfigEntry) -> None:
-        if entry.domain == DOMAIN:
+        # Lutron Caséta loading or failing changes whether Pico remotes work.
+        if entry.domain in (DOMAIN, LUTRON_DOMAIN):
             track_sources()
             notify()
 
@@ -147,6 +152,25 @@ def _unavailable(state: State | None) -> bool:
     return state is None or state.state == STATE_UNAVAILABLE
 
 
+def _lutron_source_available(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Whether a Pico remote's Pico exists and Lutron Caséta is running."""
+    device = dr.async_get(hass).async_get(entry.data.get(CONF_DEVICE_ID) or "")
+    if device is None:
+        return False
+    entry_ids = (
+        {device.config_entry_id}
+        if hasattr(device, "config_entry_id")  # Home Assistant 2026.8+
+        else device.config_entries
+    )
+    return any(
+        (lutron := hass.config_entries.async_get_entry(entry_id)) is not None
+        and lutron.domain == LUTRON_DOMAIN
+        and lutron.state is ConfigEntryState.LOADED
+        for entry_id in entry_ids
+        if entry_id
+    )
+
+
 def _panel_config(hass: HomeAssistant) -> dict[str, list[dict[str, Any]]]:
     """Build the dashboard model without exposing configured action payloads."""
     remotes = []
@@ -156,6 +180,12 @@ def _panel_config(hass: HomeAssistant) -> dict[str, list[dict[str, Any]]]:
             for sub in entry.subentries.values()
             if sub.subentry_type == SUBENTRY_BUTTON
         }
+        # Pico remotes have no event entities; their source is the Pico.
+        source_available = (
+            _lutron_source_available(hass, entry)
+            if entry.data.get(CONF_SOURCE) == SOURCE_LUTRON
+            else True
+        )
         buttons = []
         ordered_buttons = sorted(
             buttons_from_entry(entry),
@@ -182,7 +212,7 @@ def _panel_config(hass: HomeAssistant) -> dict[str, list[dict[str, Any]]]:
                         for entity_id in button.entities
                     )
                     if button.entities
-                    else True,
+                    else source_available,
                 }
             )
         remotes.append(
