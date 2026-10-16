@@ -8,9 +8,10 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigSubentryData
+from homeassistant.config_entries import ConfigEntryState, ConfigSubentryData
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import Unauthorized
+from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
 )
@@ -188,3 +189,45 @@ async def test_panel_subscription_reports_changes(
     hass.states.async_set("event.office_remote_button", "unavailable")
     await hass.async_block_till_done()
     assert await drain() == 1
+
+
+@pytest.mark.parametrize("lutron_state", ["loaded", "not_loaded", "no_pico"])
+async def test_pico_remote_availability(hass: HomeAssistant, lutron_state) -> None:
+    """A Pico remote is unavailable when its Pico or Lutron Caséta isn't."""
+    lutron = MockConfigEntry(
+        domain="lutron_caseta",
+        state=(
+            ConfigEntryState.LOADED
+            if lutron_state != "not_loaded"
+            else ConfigEntryState.SETUP_RETRY
+        ),
+    )
+    lutron.add_to_hass(hass)
+    pico = dr.async_get(hass).async_get_or_create(
+        config_entry_id=lutron.entry_id,
+        identifiers={("lutron_caseta", "123")},
+        name="Kitchen Pico",
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Kitchen Pico",
+        minor_version=3,
+        data={
+            "source": "lutron_caseta",
+            "device_id": "gone" if lutron_state == "no_pico" else pico.id,
+            "pico_buttons": ["on"],
+        },
+        subentries_data=[
+            ConfigSubentryData(
+                data={"slot": "on", "entities": [], "actions": {}},
+                subentry_type="button",
+                title="On button",
+                unique_id="on",
+            )
+        ],
+    )
+    entry.add_to_hass(hass)
+    (remote,) = _panel_config(hass)["remotes"]
+    assert remote["buttons"][0]["available"] is (lutron_state == "loaded")
+    # Don't let teardown try to unload the real Lutron Caséta integration.
+    lutron.mock_state(hass, ConfigEntryState.NOT_LOADED)
