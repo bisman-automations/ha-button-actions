@@ -66,6 +66,11 @@ behaviour only one version has are skipped with `pytest.mark.skipif` on a
 ## Releasing
 
 - Work on a branch and open a PR to `main`; don't push to `main` directly.
+- Commits are authored as Donavan Becker <donavan.becker@icloud.com> (set
+  `git config user.name`/`user.email` in the clone), with Claude credited by a
+  `Co-Authored-By` trailer. HACS's default-repository check requires the
+  submitter to have at least a third of the top contributor's commits, so
+  commits must not be authored as Claude.
 - Every user-visible change bumps `version` in `manifest.json` and adds a
   section to `CHANGELOG.md` (Keep a Changelog; also update the compare links
   at the bottom). The manifest version is what HA and HACS show; 1.9.0 once
