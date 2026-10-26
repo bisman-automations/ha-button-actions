@@ -5,11 +5,6 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-from homeassistant import config_entries
-from homeassistant.config_entries import ConfigSubentryData
-from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.button_actions.config_flow import replace_text
@@ -32,6 +27,11 @@ from custom_components.button_actions.const import (
 from custom_components.button_actions.diagnostics import (
     async_get_config_entry_diagnostics,
 )
+from homeassistant import config_entries
+from homeassistant.config_entries import ConfigSubentryData
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import device_registry as dr
 
 BOYS_ON = [
     {

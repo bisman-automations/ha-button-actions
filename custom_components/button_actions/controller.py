@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+import logging
 from typing import TYPE_CHECKING, Any
 
-import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
+
 from homeassistant.const import CONF_DEVICE_ID, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import (
     CALLBACK_TYPE,
@@ -19,8 +19,8 @@ from homeassistant.core import (
     callback,
 )
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
+import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.script import (
     SCRIPT_MODE_PARALLEL,

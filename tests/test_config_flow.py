@@ -6,16 +6,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import yaml
-from homeassistant import config_entries
-from homeassistant.config_entries import ConfigSubentryData
-from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_mock_service,
 )
+import yaml
 
 from custom_components.button_actions.const import (
     CONF_ACTIONS,
@@ -28,6 +23,11 @@ from custom_components.button_actions.const import (
     DOMAIN,
     SUBENTRY_BUTTON,
 )
+from homeassistant import config_entries
+from homeassistant.config_entries import ConfigSubentryData
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import entity_registry as er
 
 AUTOMATION = {
     "id": "1712345678901",

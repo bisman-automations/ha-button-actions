@@ -7,8 +7,7 @@ from homeassistant.components.device_automation import (
     async_get_device_automations,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from .const import LUTRON_DOMAIN, SLOTS
 

@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import itertools
 from datetime import timedelta
+import itertools
 
 import pytest
-from homeassistant.config_entries import ConfigSubentryData
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
@@ -29,6 +26,9 @@ from custom_components.button_actions.const import (
     SUBENTRY_BUTTON,
 )
 from custom_components.button_actions.events import resolve_role, suggest_roles
+from homeassistant.config_entries import ConfigSubentryData
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.util import dt as dt_util
 
 
 @pytest.mark.parametrize(

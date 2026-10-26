@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import copy
+from dataclasses import dataclass
 import logging
 import re
-from collections.abc import Mapping
-from dataclasses import dataclass
 from typing import Any
 
 import voluptuous as vol
+
 from homeassistant.config_entries import (
     SOURCE_IMPORT,
     ConfigEntry,
@@ -24,9 +25,7 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_DEVICE_ID, CONF_NAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers import selector
+from homeassistant.helpers import device_registry as dr, entity_registry as er, selector
 from homeassistant.util.yaml import load_yaml
 
 from .const import (

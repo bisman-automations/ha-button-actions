@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
+
 from homeassistant.components import websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import (

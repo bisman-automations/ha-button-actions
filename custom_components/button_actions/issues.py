@@ -12,9 +12,11 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.const import CONF_DEVICE_ID, STATE_ON
 from homeassistant.core import Event, HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import (
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.start import async_at_started
 

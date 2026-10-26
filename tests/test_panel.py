@@ -7,14 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigEntryState, ConfigSubentryData
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import Unauthorized
-from homeassistant.helpers import device_registry as dr
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-)
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.button_actions import async_setup
 from custom_components.button_actions.const import (
@@ -33,6 +26,11 @@ from custom_components.button_actions.panel import (
     async_register_panel,
     websocket_get_panel_config,
 )
+from homeassistant.components import websocket_api
+from homeassistant.config_entries import ConfigEntryState, ConfigSubentryData
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import Unauthorized
+from homeassistant.helpers import device_registry as dr
 
 
 def _remote(hass: HomeAssistant) -> MockConfigEntry:

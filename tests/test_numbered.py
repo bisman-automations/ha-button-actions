@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import itertools
 from datetime import timedelta
+import itertools
 
-from homeassistant import config_entries
-from homeassistant.config_entries import ConfigSubentryData
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import entity_registry as er
-from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
@@ -30,6 +24,12 @@ from custom_components.button_actions.const import (
     SUBENTRY_BUTTON,
 )
 from custom_components.button_actions.controller import own_device
+from homeassistant import config_entries
+from homeassistant.config_entries import ConfigSubentryData
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 LIGHT = [{"action": "light.turn_on", "target": {"entity_id": "light.x"}}]
 _ticks = itertools.count()

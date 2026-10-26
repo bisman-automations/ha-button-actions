@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import itertools
 from datetime import timedelta
+import itertools
 
-from homeassistant.config_entries import ConfigSubentryData
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
-from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
@@ -29,6 +25,10 @@ from custom_components.button_actions.const import (
     SLOT_TITLES,
     SUBENTRY_BUTTON,
 )
+from homeassistant.config_entries import ConfigSubentryData
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 ON = "event.kitchen_remote_on"
 RAISE = "event.kitchen_remote_raise"
