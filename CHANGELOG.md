@@ -5,14 +5,9 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
 ## [1.9.1] - 2026-10-16
-
-### Fixed
-
-- The sidebar dashboard no longer disappears for a moment whenever a remote is edited. It's registered once when Button Actions starts instead of with each remote, so saving a change from the dashboard (which reloads the remote) no longer removes the page you're on.
-- The version shown in Home Assistant and HACS is correct again; 1.9.0 still reported 1.8.0.
-- A remote reconfigured or button edited from the dashboard now reports "Configuration saved" instead of "Configuration not changed".
-- Pico remotes always showed as available on the dashboard. They now show **Source unavailable** when their Pico is gone or Lutron Caséta isn't running.
 
 ### Changed
 
@@ -20,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dashboard popups use the integration's own titles, descriptions, field labels, help text and error messages, the same as Settings → Devices & services.
 - On phones, the dashboard has the sidebar menu button.
 - Removed an unused fallback for device triggers that nothing ever set.
+
+### Fixed
+
+- The sidebar dashboard no longer disappears for a moment whenever a remote is edited. It's registered once when Button Actions starts instead of with each remote, so saving a change from the dashboard (which reloads the remote) no longer removes the page you're on.
+- The version shown in Home Assistant and HACS is correct again; 1.9.0 still reported 1.8.0.
+- A remote reconfigured or button edited from the dashboard now reports "Configuration saved" instead of "Configuration not changed".
+- Pico remotes always showed as available on the dashboard. They now show **Source unavailable** when their Pico is gone or Lutron Caséta isn't running.
 
 ## [1.9.0] - 2026-10-12
 
@@ -65,16 +67,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.7.1] - 2026-10-09
 
+### Changed
+
+- Every remote keeps its own device again, shown as connected via its Pico or button device. Its device triggers are listed there, so automations made before 1.7.0 keep working. Triggers picked on a linked device with 1.7.0 still work.
+- Requires Home Assistant 2025.8 or newer.
+
 ### Fixed
 
 - Remotes weren't linked to their Pico or button device on Home Assistant 2026.8 and newer, where a device can only belong to one integration. Gesture entities are now shown on the linked device on every supported version.
 - **Reconfigure** on a remote that isn't a Pico only let you pick Lutron Caséta devices. It now lets you link any device; picking a Pico still switches the remote to read presses from Lutron.
 - Avoided Home Assistant 2026.8+ deprecation warnings about device lookups.
-
-### Changed
-
-- Every remote keeps its own device again, shown as connected via its Pico or button device. Its device triggers are listed there, so automations made before 1.7.0 keep working. Triggers picked on a linked device with 1.7.0 still work.
-- Requires Home Assistant 2025.8 or newer.
 
 ## [1.7.0] - 2026-10-09
 
@@ -164,21 +166,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.0] - 2026-10-07
 
-### Changed
+**Upgrading:**
 
-- Each button is now listed under its remote on the integration page, with its own edit button for its actions and event entities. This replaces the old Configure menu.
-- The gear on a remote now opens just the click timing settings.
-- Button Actions is now a device integration instead of a helper. Remotes appear as regular integration entries and are added from **Add integration**.
-- Requires Home Assistant 2025.4 or newer.
+- Remotes set up with 1.0.0 convert automatically on startup. Actions, repeat settings and entity IDs are kept.
 
 ### Added
 
 - **Add button** on a remote, for buttons skipped during setup.
 - Deleting a button also removes its gesture event entity.
 
-### Migration
+### Changed
 
-- Remotes set up with 1.0.0 convert automatically on startup. Actions, repeat settings and entity IDs are kept.
+- Each button is now listed under its remote on the integration page, with its own edit button for its actions and event entities. This replaces the old Configure menu.
+- The gear on a remote now opens just the click timing settings.
+- Button Actions is now a device integration instead of a helper. Remotes appear as regular integration entries and are added from **Add integration**.
+- Requires Home Assistant 2025.4 or newer.
 
 ## [1.0.0] - 2026-10-06
 

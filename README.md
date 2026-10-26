@@ -1,8 +1,15 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/bisman-automations/ha-button-actions/main/custom_components/button_actions/brand/icon@2x.png" alt="Button Actions icon" width="128">
+  <img src="https://raw.githubusercontent.com/bisman-automations/ha-button-actions/main/custom_components/button_actions/brand/icon.png" alt="Button Actions icon" width="128">
 </p>
 
 # Button Actions
+
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.11%2B-blue.svg)](https://www.home-assistant.io/)
+[![GitHub Release](https://img.shields.io/github/v/release/bisman-automations/ha-button-actions)](https://github.com/bisman-automations/ha-button-actions/releases)
+[![Test](https://github.com/bisman-automations/ha-button-actions/actions/workflows/test.yml/badge.svg)](https://github.com/bisman-automations/ha-button-actions/actions/workflows/test.yml)
+[![Validate](https://github.com/bisman-automations/ha-button-actions/actions/workflows/validate.yml/badge.svg)](https://github.com/bisman-automations/ha-button-actions/actions/workflows/validate.yml)
+[![License](https://img.shields.io/github/license/bisman-automations/ha-button-actions)](LICENSE)
 
 Map short, double and long presses on Lutron Pico and other button remotes to any Home Assistant action, configured entirely in the UI. No automations needed.
 
@@ -52,7 +59,7 @@ These illustrative mockups show the administrator-only sidebar dashboard on desk
 
 ## Requirements
 
-- Home Assistant 2025.8 or newer. The integration icon shows in the UI on 2026.3 and newer.
+- Home Assistant 2025.11 or newer. The integration icon shows in the UI on 2026.3 and newer.
 - One of:
   - A Pico paired with the core **Lutron Caséta** integration, or
   - Event entities for each button, such as those from [lutron-caseta-events](https://github.com/jharris4/lutron-caseta-events), Matter, Zigbee or ESPHome.
@@ -61,15 +68,20 @@ These illustrative mockups show the administrator-only sidebar dashboard on desk
 
 ### HACS
 
-1. In HACS, open the menu and choose **Custom repositories**.
-2. Add `https://github.com/bisman-automations/ha-button-actions` as an **Integration**.
-3. Install **Button Actions** and restart Home Assistant.
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=bisman-automations&repository=ha-button-actions&category=integration)
+
+1. Click the button above, or in HACS open the menu, choose **Custom repositories**, and add `https://github.com/bisman-automations/ha-button-actions` as an **Integration**.
+2. Download **Button Actions** and restart Home Assistant.
+
+Requires **Home Assistant 2025.11 or newer**.
 
 ### Manual
 
-Copy `custom_components/button_actions` into your `config/custom_components` folder and restart Home Assistant.
+Download `button_actions.zip` from the [latest release](https://github.com/bisman-automations/ha-button-actions/releases/latest), unzip it into `config/custom_components/button_actions/`, and restart Home Assistant.
 
 ## Setup
+
+[![Open your Home Assistant instance and start setting up Button Actions.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=button_actions)
 
 Go to **Settings → Devices & services → Add integration → Button Actions**. To add more remotes later, use **Add device** on the Button Actions page.
 
@@ -212,6 +224,45 @@ Remotes set up with 1.0.0 convert automatically the first time Home Assistant st
 - Gesture event entities and device triggers only report gestures the button is watching for. A button with no double-press action never reports `double_press` unless **Detect every gesture** is on.
 - If a release event goes missing, the next press resets the button, and repeat stops after 30 seconds, so a button can't get stuck.
 
+## Troubleshooting
+
+### Diagnostics and debug logs
+
+When something goes wrong, download diagnostics from **Settings → Devices & services → Button Actions → ⋮ → Download diagnostics** and check the file before you share it.
+
+For debug logs, use **Enable debug logging** on the integration page, or add this to `configuration.yaml` and restart:
+
+```yaml
+logger:
+  logs:
+    custom_components.button_actions: debug
+```
+
+Then open an [issue](https://github.com/bisman-automations/ha-button-actions/issues/new/choose) with the diagnostics, the log, and your Home Assistant and Button Actions versions.
+
+## Development
+
+Tests run inside a real Home Assistant through
+[pytest-homeassistant-custom-component](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component).
+You need Python 3.14 for the current Home Assistant.
+
+```bash
+python3.14 -m venv .venv && . .venv/bin/activate
+pip install -r requirements_test.txt
+ruff check . && ruff format --check .
+pytest
+```
+
+The frontend tests run with `node --test tests/*.mjs`.
+
+To test against the oldest supported Home Assistant (2025.11), use Python 3.13 and
+`pip install -r requirements_test_min.txt` instead.
+
+CI runs the same checks on every push and pull request, on both Home Assistant
+versions, plus hassfest, HACS validation and the shared repo standards, using the
+workflows in [bisman-automations/.github](https://github.com/bisman-automations/.github).
+Releases are drafted from [CHANGELOG.md](CHANGELOG.md); see [CLAUDE.md](CLAUDE.md).
+
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
