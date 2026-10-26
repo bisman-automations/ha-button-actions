@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.2] - 2026-10-26
+
+### Changed
+
+- Requires Home Assistant 2025.11 or newer. Saving a button's reconfigure steps already needed it and failed on older versions.
+- The README follows the same layout as the other bisman-automations integrations: a button that opens it in HACS, a button that starts setup, and troubleshooting steps for debug logs and diagnostics.
+- Each release now includes `button_actions.zip` for installing without HACS.
+
 ## [1.9.1] - 2026-10-16
 
 ### Changed
@@ -199,7 +207,8 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.9.1...HEAD
+[Unreleased]: https://github.com/bisman-automations/ha-button-actions/compare/v1.9.2...HEAD
+[1.9.2]: https://github.com/bisman-automations/ha-button-actions/compare/v1.9.1...v1.9.2
 [1.9.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.4...v1.8.0
