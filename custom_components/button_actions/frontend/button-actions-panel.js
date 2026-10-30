@@ -36,20 +36,43 @@ class ButtonActionsPanel extends HTMLElement {
     clearTimeout(this._refreshTimer);
   }
 
+  // The first load shows a skeleton of the page. Later loads keep the page and
+  // show progress on the Refresh button (or nothing, for live updates).
   async _load({ quiet = false } = {}) {
     if (!this.shadowRoot) {
       this.attachShadow({ mode: "open" });
     }
-    if (!quiet) this._renderLoading();
+    const firstLoad = this._remotes === undefined;
+    if (!quiet) {
+      if (firstLoad) this._renderLoading();
+      else this._setRefreshing(true);
+    }
     try {
       const result = await this._hass.callWS({
         type: "button_actions/panel/config",
       });
       this._remotes = result.remotes;
+      this._refreshing = false;
       this._render();
     } catch (error) {
+      this._refreshing = false;
       if (!quiet) this._renderError(error);
     }
+  }
+
+  _setRefreshing(refreshing) {
+    this._refreshing = refreshing;
+    const button = this.shadowRoot?.querySelector?.('[data-action="refresh"]');
+    if (!button) return;
+    button.disabled = refreshing;
+    button.setAttribute?.("aria-busy", String(refreshing));
+    button.innerHTML = this._refreshLabel();
+  }
+
+  _refreshLabel() {
+    return this._refreshing
+      ? `<span class="spinner small" aria-hidden="true"></span>Refreshing…`
+      : "Refresh";
   }
 
   // Refresh when a remote is added, edited, reloaded or removed, or a button's
@@ -151,9 +174,48 @@ class ButtonActionsPanel extends HTMLElement {
     slot.append(this._menu);
   }
 
+  // A skeleton in the shape of the dashboard, so the page doesn't jump when the
+  // remotes arrive. Screen readers hear "Loading Button Actions".
   _renderLoading() {
+    const bar = (width, extra = "") =>
+      `<span class="skeleton ${extra}" style="width: ${width}"></span>`;
+    const remoteCard = (buttons) => `
+      <ha-card class="remote skeleton-card">
+        <div class="remote-header">
+          <div class="remote-heading">
+            <span class="skeleton skeleton-icon"></span>
+            <div class="skeleton-lines">${bar("180px", "line-lg")}${bar("120px")}</div>
+          </div>
+          ${bar("110px", "line-button")}
+        </div>
+        <div class="button-list">
+          ${Array.from({ length: buttons }, () => `
+            <div class="button-row">
+              <span class="skeleton skeleton-icon small"></span>
+              <div class="skeleton-lines">${bar("40%")}${bar("65%")}</div>
+            </div>`).join("")}
+        </div>
+      </ha-card>`;
     this._setContent(`
-      <main><ha-card><div class="message">Loading Button Actions…</div></ha-card></main>`);
+      <main aria-busy="true">
+        <header>
+          <div>
+            <div class="title-row"><span id="menu"></span><p class="eyebrow">REMOTE CONFIGURATION</p></div>
+            <h1>Button Actions</h1>
+            <p class="loading-status" role="status"><span class="spinner small" aria-hidden="true"></span>Loading Button Actions…</p>
+          </div>
+        </header>
+        <section class="summary" aria-hidden="true">
+          ${[0, 1, 2].map(() => `<ha-card>${bar("32px", "line-lg")}${bar("90px")}</ha-card>`).join("")}
+        </section>
+        <section class="remotes" aria-hidden="true">
+          ${remoteCard(3)}${remoteCard(2)}
+        </section>
+      </main>`);
+  }
+
+  _dialogLoading(text) {
+    return `<p class="dialog-loading" role="status"><span class="spinner small" aria-hidden="true"></span>${this._escape(text)}</p>`;
   }
 
   _renderError(error) {
@@ -203,7 +265,7 @@ class ButtonActionsPanel extends HTMLElement {
             <p class="intro">See every remote and button in one place. Configure remotes, timing, and button actions in focused popups without leaving this dashboard.</p>
           </div>
           <div class="header-actions">
-            <button class="secondary" data-action="refresh">Refresh</button>
+            <button class="secondary" data-action="refresh"${this._refreshing ? ' disabled aria-busy="true"' : ""}>${this._refreshLabel()}</button>
             <button class="primary" data-action="add-remote">Add or import remote</button>
           </div>
         </header>
@@ -455,7 +517,7 @@ class ButtonActionsPanel extends HTMLElement {
   async _startFlow(kind, title, payload) {
     const flow = { kind, title, flowId: null };
     this._activeFlow = flow;
-    this._renderDialog(title, `<p class="dialog-loading">Opening configuration…</p>`);
+    this._renderDialog(title, this._dialogLoading("Opening configuration…"));
     try {
       const step = await this._hass.callApi(
         "POST",
@@ -559,7 +621,7 @@ class ButtonActionsPanel extends HTMLElement {
     if (step.type === "progress") {
       this._renderDialog(
         this._activeFlow.title,
-        `<p class="dialog-loading">Working…</p>`,
+        this._dialogLoading("Working…"),
       );
       window.setTimeout(async () => {
         const flow = this._activeFlow;
@@ -866,6 +928,25 @@ class ButtonActionsPanel extends HTMLElement {
       .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; flex: none; padding: 16px 24px; border-top: 1px solid var(--divider-color); }
       .dialog-description { margin: 0 0 18px; color: var(--secondary-text-color); line-height: 1.5; }
       .dialog-loading, .dialog-success { padding: 8px 0; color: var(--secondary-text-color); }
+      .dialog-loading, .loading-status { display: flex; align-items: center; gap: 10px; }
+      .loading-status { color: var(--secondary-text-color); }
+      button[disabled] { cursor: default; opacity: .7; }
+      button .spinner { margin-right: 8px; vertical-align: -2px; }
+      .spinner { display: inline-block; flex: none; width: 18px; height: 18px; box-sizing: border-box; border: 2px solid var(--divider-color); border-top-color: var(--primary-color); border-radius: 50%; animation: ba-spin .8s linear infinite; }
+      .spinner.small { width: 14px; height: 14px; }
+      .skeleton { display: block; height: 12px; max-width: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--secondary-background-color) 25%, var(--divider-color) 50%, var(--secondary-background-color) 75%); background-size: 200% 100%; animation: ba-shimmer 1.4s ease-in-out infinite; }
+      .skeleton.line-lg { height: 18px; }
+      .skeleton.line-button { height: 34px; border-radius: 8px; }
+      .skeleton-icon { width: 44px; height: 44px; border-radius: 10px; flex: none; }
+      .skeleton-icon.small { width: 36px; height: 36px; }
+      .skeleton-lines { display: grid; gap: 8px; flex: 1; min-width: 0; }
+      .summary .skeleton { margin: 0; }
+      .skeleton-card { pointer-events: none; }
+      @keyframes ba-spin { to { transform: rotate(360deg); } }
+      @keyframes ba-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+      @media (prefers-reduced-motion: reduce) {
+        .spinner, .skeleton { animation: none; }
+      }
       .dialog-success { color: var(--success-color, #2e7d32); }
       .flow-menu, .dialog-remote-list, .dialog-button-list { display: grid; gap: 8px; }
       .menu-option { width: 100%; padding: 14px 16px; text-align: left; color: var(--primary-text-color); background: var(--secondary-background-color); }

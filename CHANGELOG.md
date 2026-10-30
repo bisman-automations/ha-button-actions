@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-10-30
+
+### Added
+
+- **Loading animation in the sidebar dashboard.** While the dashboard loads, it shows the outline of the page (a skeleton of the summary and remote cards) instead of a blank card. **Refresh** keeps the page in place and shows a spinner on the button, and popups show a spinner while they open or work. The animation stops if your device is set to reduce motion.
+
 ## [1.10.1] - 2026-10-30
 
 ### Changed
@@ -217,6 +223,7 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
+[1.11.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.10.1...v1.11.0
 [1.10.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.9.1...v1.10.0
 [1.9.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.9.0...v1.9.1

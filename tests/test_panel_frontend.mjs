@@ -309,3 +309,82 @@ test("saving through a popup refreshes the dashboard and shows completion", asyn
   assert.equal(completion[0], "Configuration saved");
   assert.match(completion[1], /Button 1/);
 });
+
+function fakeShadow() {
+  return {
+    innerHTML: "",
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener() {},
+  };
+}
+
+test("the first load shows a skeleton of the dashboard while it waits", async () => {
+  const panel = await createPanel();
+  panel.shadowRoot = fakeShadow();
+  let finish;
+  panel._hass = {
+    callWS: () => new Promise((resolve) => (finish = resolve)),
+  };
+  const loading = panel._load();
+
+  const html = panel.shadowRoot.innerHTML;
+  assert.match(html, /aria-busy="true"/);
+  assert.match(html, /role="status"[^>]*>.*Loading Button Actions…/s);
+  assert.match(html, /class="skeleton/);
+  assert.match(html, /class="spinner small"/);
+  assert.match(html, /prefers-reduced-motion: reduce/);
+
+  finish({ remotes: [remote] });
+  await loading;
+  assert.doesNotMatch(panel.shadowRoot.innerHTML, /class="skeleton/);
+  assert.match(panel.shadowRoot.innerHTML, /Office Remote/);
+});
+
+test("refreshing keeps the dashboard and shows progress on the Refresh button", async () => {
+  const panel = await createPanel();
+  panel.shadowRoot = fakeShadow();
+  panel._remotes = [remote];
+  panel._render();
+  const button = { disabled: false, innerHTML: "Refresh", attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } };
+  panel.shadowRoot.querySelector = (selector) =>
+    selector === '[data-action="refresh"]' ? button : null;
+  const before = panel.shadowRoot.innerHTML;
+  let finish;
+  panel._hass = { callWS: () => new Promise((resolve) => (finish = resolve)) };
+
+  const loading = panel._load();
+  assert.equal(panel.shadowRoot.innerHTML, before, "the page stays while refreshing");
+  assert.equal(button.disabled, true);
+  assert.equal(button.attrs["aria-busy"], "true");
+  assert.match(button.innerHTML, /spinner.*Refreshing…/);
+
+  finish({ remotes: [remote] });
+  await loading;
+  assert.equal(panel._refreshing, false);
+  assert.match(panel.shadowRoot.innerHTML, /data-action="refresh">Refresh</);
+});
+
+test("live updates refresh quietly, without a spinner", async () => {
+  const panel = await createPanel();
+  panel.shadowRoot = fakeShadow();
+  panel._remotes = [remote];
+  panel._render();
+  const before = panel.shadowRoot.innerHTML;
+  let finish;
+  panel._hass = { callWS: () => new Promise((resolve) => (finish = resolve)) };
+  const loading = panel._load({ quiet: true });
+  assert.equal(panel.shadowRoot.innerHTML, before);
+  assert.notEqual(panel._refreshing, true);
+  finish({ remotes: [remote] });
+  await loading;
+});
+
+test("popups show a spinner while a flow opens", async () => {
+  const panel = await createPanel();
+  const dialogs = [];
+  panel._renderDialog = (...args) => dialogs.push(args);
+  panel._hass = { callApi: () => new Promise(() => {}) };
+  panel._startFlow("config", "Add or import remote", { handler: "button_actions" });
+  assert.match(dialogs[0][1], /role="status"><span class="spinner small"[^>]*><\/span>Opening configuration…/);
+});
