@@ -5,14 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.2] - 2026-10-26
+## [1.10.0] - 2026-10-30
 
 ### Changed
 
-- Requires Home Assistant 2025.11 or newer. Saving a button's reconfigure steps already needed it and failed on older versions.
+- **Requires Home Assistant 2026.8 or newer.** Saving a button's reconfigure steps already needed 2025.11, and the device calls Home Assistant is removing in 2027 are gone. A remote's service device shows under **Linked devices** on its source device.
+- The integration icon has a dark-mode version.
 - The README follows the same layout as the other bisman-automations integrations: a button that opens it in HACS, a button that starts setup, and troubleshooting steps for debug logs and diagnostics.
 - Each release now includes `button_actions.zip` for installing without HACS.
 - The changelog no longer keeps an Unreleased section, and the agent notes follow the updated shared release rules.
+
+### Fixed
+
+- **A remote keeps working if it can't be unloaded.** It used to stop listening to its buttons before its entities were unloaded, so a failed unload left a remote that looked loaded but did nothing.
 
 ## [1.9.1] - 2026-10-16
 
@@ -206,7 +211,7 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
-[1.9.2]: https://github.com/bisman-automations/ha-button-actions/compare/v1.9.1...v1.9.2
+[1.10.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.9.1...v1.10.0
 [1.9.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.7.4...v1.8.0
