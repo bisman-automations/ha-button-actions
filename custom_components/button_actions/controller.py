@@ -139,20 +139,15 @@ def _dispatch(detector: GestureDetector, role: str) -> None:
 
 def own_device(hass: HomeAssistant, entry_id: str) -> dr.DeviceEntry | None:
     """The remote's own "Button remote" device, if it has one."""
-    registry = dr.async_get(hass)
-    identifier = (DOMAIN, entry_id)
-    if hasattr(registry, "async_get_device_by_identifier"):
-        # Home Assistant 2026.8+: identifiers are unique per config entry.
-        return registry.async_get_device_by_identifier(identifier, entry_id)
-    return registry.async_get_device(identifiers={identifier})
+    # Identifiers are unique per config entry (Home Assistant 2026.8+).
+    return dr.async_get(hass).async_get_device_by_identifier(
+        (DOMAIN, entry_id), entry_id
+    )
 
 
 def device_belongs_to(device: dr.DeviceEntry, entry_id: str) -> bool:
-    """Whether a config entry owns, or since 2026.8 shares, a device."""
-    if hasattr(device, "config_entry_id"):
-        # Home Assistant 2026.8+: a device belongs to one config entry.
-        return device.config_entry_id == entry_id
-    return entry_id in device.config_entries
+    """Whether a config entry owns a device (one config entry per device)."""
+    return device.config_entry_id == entry_id
 
 
 def linked_device_id(

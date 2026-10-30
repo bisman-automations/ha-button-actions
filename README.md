@@ -5,7 +5,7 @@
 # Button Actions
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.11%2B-blue.svg)](https://www.home-assistant.io/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.8%2B-blue.svg)](https://www.home-assistant.io/)
 [![GitHub Release](https://img.shields.io/github/v/release/bisman-automations/ha-button-actions)](https://github.com/bisman-automations/ha-button-actions/releases)
 [![Test](https://github.com/bisman-automations/ha-button-actions/actions/workflows/test.yml/badge.svg)](https://github.com/bisman-automations/ha-button-actions/actions/workflows/test.yml)
 [![Validate](https://github.com/bisman-automations/ha-button-actions/actions/workflows/validate.yml/badge.svg)](https://github.com/bisman-automations/ha-button-actions/actions/workflows/validate.yml)
@@ -59,7 +59,7 @@ These illustrative mockups show the administrator-only sidebar dashboard on desk
 
 ## Requirements
 
-- Home Assistant 2025.11 or newer. The integration icon shows in the UI on 2026.3 and newer.
+- Home Assistant 2026.8 or newer.
 - One of:
   - A Pico paired with the core **Lutron Caséta** integration, or
   - Event entities for each button, such as those from [lutron-caseta-events](https://github.com/jharris4/lutron-caseta-events), Matter, Zigbee or ESPHome.
@@ -73,7 +73,7 @@ These illustrative mockups show the administrator-only sidebar dashboard on desk
 1. Click the button above, or in HACS open the menu, choose **Custom repositories**, and add `https://github.com/bisman-automations/ha-button-actions` as an **Integration**.
 2. Download **Button Actions** and restart Home Assistant.
 
-Requires **Home Assistant 2025.11 or newer**.
+Requires **Home Assistant 2026.8 or newer**.
 
 ### Manual
 
@@ -94,7 +94,7 @@ The quickest way. Pick the device the buttons belong to: a Lutron Caséta Pico, 
 
 Then use the ⚙ next to each button to choose what it does.
 
-Button Actions uses the device's own button events. On Home Assistant 2026.8 and newer, the remote's service device appears on the source device under **Linked devices**; older versions show it as **Connected via**. It doesn't add duplicate gesture event entities to the physical device.
+Button Actions uses the device's own button events. The remote's service device appears on the source device under **Linked devices**. It doesn't add duplicate gesture event entities to the physical device.
 
 Some devices only report a press, with no release and nothing for a held button. A SwitchBot Hub 2's on and off buttons work this way. Long press is then turned off for you. If a quick second press doesn't register either, turn off **Supports double press** too, so short presses fire instantly.
 
@@ -167,7 +167,7 @@ Remotes imported from the blueprint use event entities from lutron-caseta-events
 
 ### Using a button in your own automations
 
-Each remote has a service device that provides device triggers for its configured buttons and gestures. For a linked remote, open the service device from the source device's **Linked devices** card (or **Connected via** on older Home Assistant versions) and choose the trigger there.
+Each remote has a service device that provides device triggers for its configured buttons and gestures. For a linked remote, open the service device from the source device's **Linked devices** card and choose the trigger there.
 
 You can also use a standard **Event** trigger with event type `button_actions_gesture` and filter `remote`, `button` and `gesture` to the remote and gesture you want. For example:
 
@@ -255,7 +255,7 @@ pytest
 
 The frontend tests run with `node --test tests/*.mjs`.
 
-To test against the oldest supported Home Assistant (2025.11), use Python 3.13 and
+To test against the oldest supported Home Assistant (2026.8), use Python 3.14 and
 `pip install -r requirements_test_min.txt` instead.
 
 CI runs the same checks on every push and pull request, on both Home Assistant

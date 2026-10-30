@@ -193,11 +193,7 @@ def _button_event_entries(
     device_registry = dr.async_get(hass)
     if (hub := device_registry.async_get(device_id)) is None:
         return []
-    entry_ids = (
-        {hub.config_entry_id}
-        if hasattr(hub, "config_entry_id")  # Home Assistant 2026.8+
-        else hub.config_entries
-    )
+    entry_ids = {hub.config_entry_id}
     connected = [
         device.id
         for entry_id in entry_ids

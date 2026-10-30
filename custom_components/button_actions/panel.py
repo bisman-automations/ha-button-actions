@@ -158,11 +158,7 @@ def _lutron_source_available(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     device = dr.async_get(hass).async_get(entry.data.get(CONF_DEVICE_ID) or "")
     if device is None:
         return False
-    entry_ids = (
-        {device.config_entry_id}
-        if hasattr(device, "config_entry_id")  # Home Assistant 2026.8+
-        else device.config_entries
-    )
+    entry_ids = {device.config_entry_id}
     return any(
         (lutron := hass.config_entries.async_get_entry(entry_id)) is not None
         and lutron.domain == LUTRON_DOMAIN

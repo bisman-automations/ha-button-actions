@@ -37,13 +37,8 @@ MOMENTARY = ["initial_press", "short_release", "long_press", "long_release"]
 _ticks = itertools.count()
 
 
-SHARED_IDENTIFIERS = hasattr(dr.DeviceRegistry, "async_get_device_by_identifier")
-
-
 def _is_linked(hass: HomeAssistant, own: dr.DeviceEntry, device_id: str) -> bool:
-    """Whether the service device is related to its physical source."""
-    if not SHARED_IDENTIFIERS:
-        return own.via_device_id == device_id
+    """Whether the service device shares its physical source's identifiers."""
     device = dr.async_get(hass).async_get(device_id)
     return (
         device is not None
@@ -259,23 +254,6 @@ async def test_existing_remote_becomes_linked_service_device(
     _fire(hass, entity_ids[0], "short_release")
     await hass.async_block_till_done(wait_background_tasks=True)
     assert len(calls) == 1
-
-
-@pytest.mark.skipif(
-    hasattr(dr.DeviceRegistry, "async_get_device_by_identifier"),
-    reason="Home Assistant 2026.8+ can't share devices between integrations",
-)
-async def test_undoes_170_join(hass: HomeAssistant) -> None:
-    """1.7.0 added remotes to their device on older Home Assistant; undo it."""
-    device, entity_ids = _hub(hass)
-    entry = _remote(hass, entity_ids)
-    dr.async_get(hass).async_update_device(
-        device.id, add_config_entry_id=entry.entry_id
-    )
-    assert await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
-    hub = dr.async_get(hass).async_get(device.id)
-    assert hub is not None and not device_belongs_to(hub, entry.entry_id)
 
 
 async def test_unlinked_legacy_service_device_is_preserved(

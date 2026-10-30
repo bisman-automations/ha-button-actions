@@ -28,21 +28,20 @@ UI, so remotes need no automations.
 
 ## Home Assistant compatibility
 
-Minimum is in `hacs.json` (currently 2025.11). Code must work from that version
+Minimum is in `hacs.json` (currently 2026.8). Code must work from that version
 through the current release. Things that changed and bit us:
 
-- 2026.8+: a device belongs to one config entry and subentry, identifiers are
-  unique per config entry, `async_get_device`, `device.config_entries`,
+- 2026.8+: a device belongs to one config entry and subentry, and identifiers
+  are unique per config entry. `async_get_device`, `device.config_entries`,
   `add/remove_config_entry_id` and `async_device_info_to_link_from_device_id`
   are deprecated (the last returns None). Use `own_device()` /
-  `device_belongs_to()` in `controller.py`, which branch on
-  `hasattr(registry, "async_get_device_by_identifier")` /
-  `hasattr(device, "config_entry_id")`.
+  `device_belongs_to()` in `controller.py` (`async_get_device_by_identifier`,
+  `config_entry_id`) and remove devices with `async_remove_device`.
 - Never attach entities to another integration's device with `device_info`;
   set `entity.device_entry` (supported since 2025.8).
 - A remote linked to a physical device has no gesture event entities. Its own
-  service device shares the linked device's identifiers on 2026.8+ (shows under
-  "Linked devices") and uses `via_device_id` on older versions.
+  service device shares the linked device's identifiers, so it shows under
+  "Linked devices".
 - Reconfigure: use `async_update_and_abort` when the entry is loaded (the
   update listener reloads it); 2026.10 warns about reloading twice.
 - Don't iterate `registry.devices.values()`; it's deprecated on 2026.10.
@@ -51,11 +50,13 @@ through the current release. Things that changed and bit us:
 
 Run the shared checks at the end of this file. They include the Node tests of
 the dashboard (`tests/test_panel_frontend.mjs`) and pytest on both the oldest
-supported Home Assistant (`requirements_test_min.txt`, 2025.11 on Python 3.13)
+supported Home Assistant (`requirements_test_min.txt`, 2026.8 on Python 3.14)
 and the newest (`requirements_test.txt`, Python 3.14). Deprecation calls raise
 in tests on newer Home Assistant, which is how the 2026.8+ issues above were
 found. Tests that need a behaviour only one version has are skipped with
 `pytest.mark.skipif` on a `hasattr` check.
+- Unload the platforms before stopping the controller, and stop it only when
+  they unloaded, so a failed unload leaves the remote working.
 
 ## Release notes for this repo
 

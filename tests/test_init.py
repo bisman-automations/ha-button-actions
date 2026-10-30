@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import itertools
+from unittest.mock import patch
 
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
@@ -194,6 +195,20 @@ async def test_unload(hass: HomeAssistant) -> None:
     _fire(hass, RAISE, "release")
     await _advance(hass, 1)
     assert calls == []
+
+
+async def test_failed_unload_keeps_the_remote_working(hass: HomeAssistant) -> None:
+    """If the entities can't be unloaded, the remote keeps listening."""
+    calls = async_mock_service(hass, "light", "turn_on")
+    entry = await _setup(hass, {"raise": {"short_press": _light_on({})}})
+    with patch.object(
+        hass.config_entries, "async_unload_platforms", return_value=False
+    ):
+        assert not await hass.config_entries.async_unload(entry.entry_id)
+    _fire(hass, RAISE, "press")
+    _fire(hass, RAISE, "release")
+    await _advance(hass, 1)
+    assert len(calls) == 1
 
 
 async def test_removing_button_removes_its_entity(hass: HomeAssistant) -> None:

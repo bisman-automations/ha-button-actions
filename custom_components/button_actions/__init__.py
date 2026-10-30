@@ -85,10 +85,16 @@ async def async_setup_entry(
 async def async_unload_entry(
     hass: HomeAssistant, entry: ButtonActionsConfigEntry
 ) -> bool:
-    """Unload one remote."""
+    """Unload one remote.
+
+    The entities go first; the remote stops listening only once they're gone,
+    so a failed unload leaves it working instead of half stopped.
+    """
+    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        return False
     await entry.runtime_data.async_stop()
     async_delete_issues(hass, entry.entry_id)
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    return True
 
 
 async def _async_update_listener(
@@ -130,15 +136,13 @@ def _async_own_device(
     """Create a service device linked to the physical device providing buttons."""
     registry = dr.async_get(hass)
     own_identifier = (DOMAIN, entry.entry_id)
-    entry_type = getattr(getattr(dr, "DeviceEntryType", None), "SERVICE", None)
-    create_options = {"entry_type": entry_type} if entry_type is not None else {}
     device = registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={own_identifier},
         name=entry.title,
         manufacturer="Button Actions",
         model="Button remote",
-        **create_options,
+        entry_type=dr.DeviceEntryType.SERVICE,
     )
     linked = (
         registry.async_get(controller.linked_device_id)
@@ -148,11 +152,10 @@ def _async_own_device(
     identifiers = {own_identifier}
     connections: set[tuple[str, str]] = set()
     via_device_id = None
-    if linked is not None and hasattr(registry, "async_get_device_by_identifier"):
+    if linked is not None:
+        # Sharing the device's identifiers shows the two under Linked devices.
         identifiers |= {i for i in linked.identifiers if i[0] != DOMAIN}
         connections = set(linked.connections)
-    elif linked is not None:
-        via_device_id = linked.id
     if (
         device.identifiers != identifiers
         or device.connections != connections
@@ -184,12 +187,7 @@ def _async_tidy_devices(
     for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
         if device.id == current_device_id:
             continue
-        if hasattr(device, "config_entry_id"):
-            registry.async_remove_device(device.id)
-        else:
-            registry.async_update_device(
-                device.id, remove_config_entry_id=entry.entry_id
-            )
+        registry.async_remove_device(device.id)
 
 
 @callback
