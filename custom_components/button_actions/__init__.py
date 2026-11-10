@@ -28,11 +28,12 @@ from .const import (
     SLOTS,
     SUBENTRY_BUTTON,
     button_title,
-    numbered_title,
+    slot_label,
     slot_number,
 )
 from .controller import ButtonActionsController
 from .issues import async_delete_issues, async_track_issues
+from .lutron import async_sync_lutron_event_entities
 from .panel import async_register_panel, async_setup_panel_api
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,6 +65,9 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ButtonActionsConfigEntry
 ) -> bool:
     """Set up one remote."""
+    # Fill in core event entities before the controller starts listening.
+    # Slot keys, actions and unique ids are left as they are.
+    await async_sync_lutron_event_entities(hass, entry)
     controller = ButtonActionsController(hass, entry)
     entry.runtime_data = controller
     # A remote linked to a device has no gesture entities: the device already
@@ -113,14 +117,16 @@ def _async_number_button_titles(hass: HomeAssistant, entry: ConfigEntry) -> None
     buttons = {
         sub.data.get(CONF_SLOT): sub
         for sub in entry.subentries.values()
-        if sub.subentry_type == SUBENTRY_BUTTON and sub.data.get(CONF_SLOT) in SLOTS
+        if sub.subentry_type == SUBENTRY_BUTTON and sub.data.get(CONF_SLOT)
     }
     layout = entry.data.get(CONF_LAYOUT, LAYOUT_PICO)
     slots = list(buttons)
+    span = max(len(SLOTS), len(slots))
     for slot, sub in buttons.items():
-        ours = {SLOT_TITLES[slot]} | {
-            numbered_title(n, slot) for n in range(1, len(SLOTS) + 1)
-        }
+        label = slot_label(slot)
+        ours = {label} | {f"{n} · {label}" for n in range(1, span + 1)}
+        if slot in SLOT_TITLES:
+            ours.add(SLOT_TITLES[slot])
         if slot in NUMBERED_SLOTS:
             n = slot_number(slot)
             ours |= {f"Button {n}", f"Button {n:02d}"}

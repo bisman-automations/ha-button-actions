@@ -27,6 +27,7 @@ from custom_components.button_actions.const import (
 from custom_components.button_actions.diagnostics import (
     async_get_config_entry_diagnostics,
 )
+from custom_components.button_actions.lutron import LutronButton
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigSubentryData
 from homeassistant.core import HomeAssistant
@@ -185,8 +186,8 @@ async def test_duplicate_to_pico(hass: HomeAssistant, boys_remote, no_setup) -> 
     )
 
     with patch(
-        "custom_components.button_actions.config_flow.async_pico_buttons",
-        return_value=["on", "off"],
+        "custom_components.button_actions.config_flow.async_lutron_buttons",
+        return_value=[LutronButton(slot=slot, name=slot) for slot in ("on", "off")],
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {"device_id": pico}
@@ -195,8 +196,11 @@ async def test_duplicate_to_pico(hass: HomeAssistant, boys_remote, no_setup) -> 
     assert result["description_placeholders"]["missing"] == "Middle button"
 
     with patch(
-        "custom_components.button_actions.config_flow.async_pico_buttons",
-        return_value=["on", "raise", "stop", "lower", "off"],
+        "custom_components.button_actions.config_flow.async_lutron_buttons",
+        return_value=[
+            LutronButton(slot=slot, name=slot)
+            for slot in ("on", "raise", "stop", "lower", "off")
+        ],
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {"device_id": pico}

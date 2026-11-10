@@ -36,6 +36,13 @@ from homeassistant.util import dt as dt_util
     [
         # Lutron (lutron-caseta-events)
         (["press", "release"], {"press": "press", "release": "release"}),
+        # Core Lutron Caséta event entities (Home Assistant 2026.11): a Pico
+        # reports both edges, a keypad reports the press only.
+        (
+            ["press_start", "press_end"],
+            {"press_start": "press", "press_end": "release"},
+        ),
+        (["press_start"], {"press_start": "click"}),
         # Matter momentary switch with release and long press
         (
             ["initial_press", "short_release", "long_press", "long_release"],

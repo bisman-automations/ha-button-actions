@@ -35,6 +35,7 @@ from .const import (
     CONF_ENTITIES,
     CONF_EVENT_ROLES,
     CONF_HOLD_MS,
+    CONF_LUTRON_INPUT,
     CONF_PRESS_EVENT,
     CONF_RELEASE_EVENT,
     CONF_REPEAT,
@@ -60,10 +61,11 @@ from .const import (
     LUTRON_ACTION_PRESS,
     LUTRON_ACTION_RELEASE,
     LUTRON_BUTTON_EVENT,
-    SLOTS,
+    LUTRON_INPUT_BUS,
     SOURCE_EVENT_ENTITY,
     SOURCE_LUTRON,
     SUBENTRY_BUTTON,
+    slot_sort_key,
 )
 from .events import (
     ROLE_CLICK,
@@ -75,6 +77,7 @@ from .events import (
     resolve_role,
 )
 from .gesture import GestureDetector, GestureSettings
+from .lutron import entity_reports_press_and_release
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -106,9 +109,9 @@ def buttons_from_entry(entry: ConfigEntry) -> list[ButtonConfig]:
             detect_all=bool(sub.data.get(CONF_DETECT_ALL, False)),
         )
         for sub in entry.subentries.values()
-        if sub.subentry_type == SUBENTRY_BUTTON and sub.data.get(CONF_SLOT) in SLOTS
+        if sub.subentry_type == SUBENTRY_BUTTON and sub.data.get(CONF_SLOT)
     ]
-    return sorted(buttons, key=lambda b: SLOTS.index(b.slot))
+    return sorted(buttons, key=lambda b: slot_sort_key(b.slot))
 
 
 def event_role_overrides(data: Mapping[str, Any]) -> dict[str, str]:
@@ -250,7 +253,7 @@ class ButtonActionsController:
         self._scripts: dict[tuple[str, str], Script] = {}
         # slot -> listener that mirrors gestures onto that slot's event entity
         self._gesture_listeners: dict[str, Callable[[str], None]] = {}
-        self._unsub: CALLBACK_TYPE | None = None
+        self._unsubs: list[CALLBACK_TYPE] = []
 
     @property
     def slots(self) -> list[str]:
@@ -280,7 +283,15 @@ class ButtonActionsController:
             settings = settings_for_button(
                 self.entry.options, button, *remote_capabilities(self.entry.data)
             )
-            keys = [button.slot] if self.source == SOURCE_LUTRON else button.entities
+            # A Lutron button uses its event entity only when that entity
+            # reports both a press and a release. Otherwise the slot is the
+            # bus-event button_type. Listening to both for one button would
+            # run every press twice.
+            if self.source == SOURCE_LUTRON:
+                entity_id = self._lutron_entity_for(button)
+                keys = [entity_id] if entity_id else [button.slot]
+            else:
+                keys = button.entities
             for key in keys:
                 self._detectors[key] = (
                     button.slot,
@@ -293,24 +304,37 @@ class ButtonActionsController:
             return
         if self.source == SOURCE_LUTRON:
             device_id = self._device_id
+            slots = {button.slot for button in self.buttons}
+            if any(key in slots for key in self._detectors):
 
-            @callback
-            def _is_this_pico(data: Mapping[str, Any]) -> bool:
-                return data.get(CONF_DEVICE_ID) == device_id
+                @callback
+                def _is_this_device(data: Mapping[str, Any]) -> bool:
+                    return data.get(CONF_DEVICE_ID) == device_id
 
-            self._unsub = self.hass.bus.async_listen(
-                LUTRON_BUTTON_EVENT, self._handle_lutron_event, _is_this_pico
-            )
+                self._unsubs.append(
+                    self.hass.bus.async_listen(
+                        LUTRON_BUTTON_EVENT, self._handle_lutron_event, _is_this_device
+                    )
+                )
+            entity_ids = [key for key in self._detectors if key not in slots]
+            if entity_ids:
+                self._unsubs.append(
+                    async_track_state_change_event(
+                        self.hass, entity_ids, self._handle_state_change
+                    )
+                )
         else:
-            self._unsub = async_track_state_change_event(
-                self.hass, list(self._detectors), self._handle_state_change
+            self._unsubs.append(
+                async_track_state_change_event(
+                    self.hass, list(self._detectors), self._handle_state_change
+                )
             )
 
     async def async_stop(self) -> None:
         """Stop listening, drop pending timers and stop running actions."""
-        if self._unsub is not None:
-            self._unsub()
-            self._unsub = None
+        for unsub in self._unsubs:
+            unsub()
+        self._unsubs.clear()
         for _slot, detector in self._detectors.values():
             detector.reset()
         self._detectors.clear()
@@ -325,7 +349,7 @@ class ButtonActionsController:
             "source": self.source,
             "linked_device_id": self.linked_device_id,
             "event_role_overrides": self.event_roles,
-            "listening": self._unsub is not None,
+            "listening": bool(self._unsubs),
             "detectors": {
                 key: {"button": slot, "state": detector.state}
                 for key, (slot, detector) in self._detectors.items()
@@ -445,9 +469,27 @@ class ButtonActionsController:
         device = own_device(self.hass, self.entry.entry_id)
         return device.id if device else None
 
+    def _lutron_entity_for(self, button: ButtonConfig) -> str | None:
+        """The event entity to listen to, when it can time a hold.
+
+        Reconfigure can force the bus event (``lutron_input`` is ``bus``).
+        A keypad entity that only sends ``press_start`` cannot time a long
+        press, so it is not used; the bus event still carries the release.
+        """
+        if self.entry.data.get(CONF_LUTRON_INPUT) == LUTRON_INPUT_BUS:
+            return None
+        for entity_id in button.entities:
+            if entity_reports_press_and_release(self.hass, entity_id):
+                return entity_id
+        return None
+
     @callback
     def _handle_lutron_event(self, event: Event) -> None:
-        """Core Lutron fires one event per press and per release."""
+        """Core Lutron fires one bus event per press and per release.
+
+        Buttons that are listened to through an event entity are not in
+        ``_detectors`` under their slot, so this ignores them.
+        """
         if (found := self._detectors.get(event.data.get("button_type"))) is None:
             return
         _slot, detector = found

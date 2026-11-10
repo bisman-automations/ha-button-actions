@@ -5,7 +5,7 @@
         "title": "Add a button remote",
         "description": "Pick the device whose buttons you want to use, import Pico blueprint automations, copy a remote you already have, or set one up by hand.",
         "menu_options": {
-          "device": "Pick a device (Lutron Pico, hub, Zigbee remote…)",
+          "device": "Pick a device (Lutron keypad or Pico, hub, Zigbee remote…)",
           "import_blueprint": "Import from a Pico blueprint automation",
           "import_all": "Import all Pico blueprint automations",
           "duplicate": "Duplicate an existing remote",
@@ -38,19 +38,23 @@
         }
       },
       "lutron": {
-        "title": "Lutron Caséta Pico",
-        "description": "Pick a Pico from the Lutron Caséta integration. Its buttons are added automatically, and presses are read straight from Lutron, so no other integration is needed.",
+        "title": "Lutron Caséta keypad or Pico",
+        "description": "Pick a keypad, Pico or shade remote from the Lutron Caséta integration, including RadioRA 3, HomeWorks and Athena. Its buttons are added automatically, and presses are read from Lutron, so no other integration is needed.",
         "data": {
-          "device_id": "Pico",
+          "device_id": "Keypad or Pico",
           "name": "Name"
         },
         "data_description": {
-          "name": "Optional. Defaults to the Pico's name."
+          "name": "Optional. Defaults to the device's name."
         }
+      },
+      "lutron_confirm": {
+        "title": "{remote}",
+        "description": "Found {count} buttons:\n\n{buttons}\n\n{source_note}"
       },
       "reconfigure": {
         "title": "Reconfigure remote",
-        "description": "Rename this remote, change what it supports, or pick the device its buttons belong to. Button Actions creates a linked service device for triggers without adding duplicate gesture entities to the physical device. Picking a Lutron Caséta Pico instead reads presses straight from Lutron; every button keeps its actions. Otherwise you'll check how its event types are used next.",
+        "description": "Rename this remote, change what it supports, or pick the device its buttons belong to. Button Actions creates a linked service device for triggers without adding duplicate gesture entities to the physical device. Picking a Lutron Caséta keypad or Pico instead reads presses from Lutron; every button keeps its actions. Otherwise you'll check how its event types are used next.",
         "data": {
           "name": "Name",
           "device_id": "Device",
@@ -58,17 +62,21 @@
           "supports_long": "Supports long press"
         },
         "data_description": {
-          "device_id": "Optional. The hub, switch or remote these buttons belong to. A Lutron Caséta Pico switches the remote to read presses from Lutron, so other integrations that provide its event entities are no longer needed for it.",
+          "device_id": "Optional. The hub, switch or remote these buttons belong to. A Lutron Caséta keypad or Pico switches the remote to read presses from Lutron, so other integrations that provide its event entities are no longer needed for it.",
           "supports_double": "Turn off if the remote can't be pressed twice quickly, or you don't want double presses. Short presses then always fire instantly.",
           "supports_long": "Turn off if the remote can't be held down, or you don't want long presses. Holding a button then counts as a short press."
         }
       },
       "reconfigure_lutron": {
         "title": "Reconfigure remote",
-        "description": "Rename this remote, or pick a different Pico if you replaced it. Every button keeps its actions.",
+        "description": "Rename this remote, or pick a different keypad or Pico if you replaced it. Every button keeps its actions.\n\n{source_note}",
         "data": {
           "name": "Name",
-          "device_id": "Pico"
+          "device_id": "Keypad or Pico",
+          "use_event_entities": "Use Lutron's button event entities"
+        },
+        "data_description": {
+          "use_event_entities": "Turn on when this Home Assistant gives each button an event entity with a press and a release, which is Home Assistant 2026.11 and newer for a Pico. Leave it off to keep reading Lutron's button event. Keypads don't report a release on their event entities, so they stay on the button event either way."
         }
       },
       "import_choice": {
@@ -109,14 +117,14 @@
       "duplicate_source": {
         "title": "Where should {remote} read presses from?",
         "menu_options": {
-          "duplicate_pico": "A Lutron Caséta Pico",
+          "duplicate_pico": "A Lutron Caséta keypad or Pico",
           "duplicate_entities": "Event entities"
         }
       },
       "duplicate_pico": {
-        "title": "Pick the Pico",
+        "title": "Pick the keypad or Pico",
         "data": {
-          "device_id": "Pico"
+          "device_id": "Keypad or Pico"
         }
       },
       "duplicate_entities": {
@@ -203,11 +211,11 @@
       "already_configured": "One of these event entities is already used by another button.",
       "not_blueprint": "This automation doesn't use the Lutron Pico Universal Actions blueprint.",
       "invalid_action": "One of the actions is invalid. Check the logs for details.",
-      "pico_in_use": "This Pico already drives another remote, so every press would run twice.",
-      "not_a_pico": "This device doesn't have Pico buttons Button Actions can use.",
-      "buttons_missing": "This Pico doesn't have every button this remote uses. Missing: {missing}.",
+      "pico_in_use": "This keypad or Pico already drives another remote, so every press would run twice.",
+      "not_a_pico": "This device doesn't have Lutron buttons Button Actions can use.",
+      "buttons_missing": "This device doesn't have every button this remote uses. Missing: {missing}.",
       "nothing_to_import": "None of the selected automations could be imported. They may already be set up, or have invalid actions.",
-      "no_buttons_on_device": "This device has no buttons Button Actions can use. Pick a device with button event entities, a hub with a buttons device connected via it, or a Lutron Caséta Pico.",
+      "no_buttons_on_device": "This device has no buttons Button Actions can use. Pick a device with button event entities, a hub with a buttons device connected via it, or a Lutron Caséta keypad or Pico.",
       "too_many_buttons": "This device has more than 12 buttons, which is more than Button Actions supports."
     },
     "abort": {
@@ -499,8 +507,8 @@
       "description": "These event entities no longer exist, so the buttons that use them can't fire: {entities}. If they were renamed or the remote was re-paired, edit those buttons on the {remote} entry and pick the new entities."
     },
     "pico_missing": {
-      "title": "{remote}'s Pico is gone",
-      "description": "The Pico this remote reads presses from is no longer in the Lutron Caséta integration. If you replaced or re-paired it, open Reconfigure on {remote} and pick the new Pico. Every button keeps its actions."
+      "title": "{remote}'s Lutron device is gone",
+      "description": "The keypad or Pico this remote reads presses from is no longer in the Lutron Caséta integration. If you replaced or re-paired it, open Reconfigure on {remote} and pick the new one. Every button keeps its actions."
     }
   },
   "device_automation": {

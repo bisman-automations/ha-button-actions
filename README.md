@@ -11,7 +11,7 @@
 [![Validate](https://github.com/bisman-automations/ha-button-actions/actions/workflows/validate.yml/badge.svg)](https://github.com/bisman-automations/ha-button-actions/actions/workflows/validate.yml)
 [![License](https://img.shields.io/github/license/bisman-automations/ha-button-actions)](LICENSE)
 
-Map short, double and long presses on Lutron Pico and other button remotes to any Home Assistant action, configured entirely in the UI. No automations needed.
+Map short, double and long presses on Lutron keypads, Picos and other button remotes to any Home Assistant action, configured entirely in the UI. No automations needed.
 
 ## Why
 
@@ -48,11 +48,11 @@ These illustrative mockups show the administrator-only sidebar dashboard on desk
 - **Hold to repeat:** turn on repeat for a button and its long-press action keeps running while held. Pair it with `brightness_step_pct` or `volume_up` for hold-to-dim and hold-to-raise.
 - **No waiting when you don't need it:** a button with no double-press action fires its short press the instant you let go. A button with no long-press action treats a long press as a short one.
 - **Import your blueprint automations:** convert automations made with the *Lutron Pico Universal Actions (Event Entities)* blueprint one at a time or all at once. Buttons, actions and timing carry over, the old automations are turned off for you, and remotes can read presses straight from Lutron.
-- **Linked service devices:** pick a Pico, hub or Zigbee remote and its buttons are found for you. The Button Actions service device appears under the source device's **Linked devices** without adding duplicate gesture entities to the physical device.
+- **Linked service devices:** pick a Lutron keypad or Pico, a hub or a Zigbee remote and its buttons are found for you. The Button Actions service device appears under the source device's **Linked devices** without adding duplicate gesture entities to the physical device.
 - **Device triggers:** the linked Button Actions service device offers triggers for every configured button and gesture.
 - **Repairs:** you're told if an imported blueprint automation gets turned back on (presses would run twice), or if a button's event entity or Pico disappears.
 - **Gesture event entities:** unlinked remotes get an event entity per button on their service device that reports `short_press`, `double_press`, `long_press` and `long_release`. Linked remotes don't add duplicate gesture entities to the physical device; use device triggers from their linked service device.
-- **Lutron Caséta Picos built in:** pick a Pico from the core Lutron Caséta integration and its buttons are set up for you. No extra integration needed.
+- **Lutron Caséta keypads and Picos built in:** pick a keypad, Pico or shade remote from the core Lutron Caséta integration, including RadioRA 3, HomeWorks QSX, Sunnata, seeTouch and Athena. Its buttons are set up for you. No extra integration needed. On Home Assistant 2026.11 and newer, a Pico's button event entities are used when they report a press and a release. A keypad doesn't report a release that way, so it keeps using Lutron's button event, which is also what older Home Assistant versions use.
 - **Works with other button devices too:** Matter switches and hub buttons, Zigbee, ESPHome and more. Each event type a device sends is recognized automatically, whether it reports presses and releases or detects single, double and held presses itself.
 - **Duplicate a remote:** copy every button's actions to a new remote, with find-and-replace to retarget areas and entities in one step.
 - **Download diagnostics:** a remote's config and each button's live state in one file, for bug reports.
@@ -61,27 +61,34 @@ These illustrative mockups show the administrator-only sidebar dashboard on desk
 
 - Home Assistant 2026.8 or newer.
 - One of:
-  - A Pico paired with the core **Lutron Caséta** integration, or
+  - A keypad, Pico or shade remote paired with the core **Lutron Caséta** integration (Caséta, RA2 Select, RadioRA 3, HomeWorks QSX or Athena), or
   - Event entities for each button, such as those from [lutron-caseta-events](https://github.com/jharris4/lutron-caseta-events), Matter, Zigbee or ESPHome.
 
 ## Installation
 
 Requires **Home Assistant 2026.8 or newer**.
 
-### Marketplace (Home Assistant 2026.11 and newer)
+### Marketplace (Home Assistant 2026.11 and newer, recommended)
 
 [![Open your Home Assistant instance and open this repository in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=bisman-automations&repository=ha-button-actions&category=integration)
 
-1. Select the button above, or go to **Settings > Marketplace**, choose **Add from link**, enter `bisman-automations/ha-button-actions` under **GitHub link**, and select **Add**. Adding a repository from a link needs a GitHub connection; the Marketplace asks you to connect one if you haven't.
-2. Install **Button Actions**. If a repair asks you to restart Home Assistant, restart it.
+1. Open the Marketplace and search for **Button Actions**, or select the button above.
+2. Download **Button Actions**. If a repair asks you to restart Home Assistant, restart it.
 
 New versions show up under **Settings > Updates**. Already installed Button Actions with HACS? There's nothing to do: Home Assistant moves it into the Marketplace the first time it starts on 2026.11.
 
 ### HACS (Home Assistant 2026.10 and older)
 
+1. Open HACS and search for **Button Actions**.
+2. Download **Button Actions** and restart Home Assistant.
+
 [![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=bisman-automations&repository=ha-button-actions&category=integration)
 
-1. Click the button above, or in HACS open the menu, choose **Custom repositories**, and add `https://github.com/bisman-automations/ha-button-actions` as an **Integration**.
+### Custom repository
+
+If **Button Actions** does not appear in search:
+
+1. In HACS open the menu, choose **Custom repositories**, and add `https://github.com/bisman-automations/ha-button-actions` as an **Integration**.
 2. Download **Button Actions** and restart Home Assistant.
 
 ### Manual
@@ -96,9 +103,9 @@ Go to **Settings → Devices & services → Add integration → Button Actions**
 
 ### Pick a device
 
-The quickest way. Pick the device the buttons belong to: a Lutron Caséta Pico, a hub such as a SwitchBot Hub 2, a Matter switch, a Zigbee or ESPHome remote. Its buttons are found automatically. A hub that puts its buttons on a separate device connected via it, as a SwitchBot Hub 2 does over Matter ("Hub Buttons"), works too: pick the hub or the buttons device.
+The quickest way. Pick the device the buttons belong to: a Lutron Caséta keypad or Pico, a hub such as a SwitchBot Hub 2, a Matter switch, a Zigbee or ESPHome remote. Its buttons are found automatically. A hub that puts its buttons on a separate device connected via it, as a SwitchBot Hub 2 does over Matter ("Hub Buttons"), works too: pick the hub or the buttons device.
 
-- **Lutron Pico:** its On, Raise, Middle, Lower, Off and scene buttons are added, and presses are read straight from the Lutron Caséta integration.
+- **Lutron keypad or Pico:** every button Lutron reports is added, including On, Raise, Middle, Lower, Off and scene buttons on a Pico, and the named buttons on a keypad (Sunnata, seeTouch and the keypads on RadioRA 3, HomeWorks and Athena). You're shown the buttons and where presses will be read from. On Home Assistant 2026.11 and newer, a button whose event entity reports both a press and a release uses that entity. A keypad's event entity reports the press only, because Lutron doesn't reliably say when the button comes up, so those presses stay on Lutron's button event. That event still includes the release, which is what a long press, a double press and hold-to-repeat are timed from. Home Assistant 2026.8 through 2026.10 have no button event entities, and use the button event too. A keypad or Pico that's already set up keeps working; it switches to the event entities on its own only when every button still lines up. Open **Reconfigure** to choose.
 - **Anything else:** you're shown the buttons that were found (Button 1, Button 2…) and asked whether the device supports double and long press. Long press is filled in from the event types the device reports.
 
 Then use the ⚙ next to each button to choose what it does.
@@ -121,7 +128,7 @@ Lists every Pico blueprint automation that hasn't been imported yet, with all of
 
 Pick a remote to copy and give the copy a name. Every button's actions, its repeat and detection settings, and the click timing are copied over.
 
-Use **Find** and **Replace with** to change text in every copied action at once. For example, find `boys_bedroom` and replace it with `girls_bedroom` to retarget a whole remote's areas and lamps. Then choose where the copy reads presses from: a Lutron Caséta Pico, or its own event entities. The original remote isn't changed.
+Use **Find** and **Replace with** to change text in every copied action at once. For example, find `boys_bedroom` and replace it with `girls_bedroom` to retarget a whole remote's areas and lamps. Then choose where the copy reads presses from: a Lutron Caséta keypad or Pico, or its own event entities. The original remote isn't changed.
 
 ### Set up a remote by hand
 
@@ -143,7 +150,7 @@ Button devices report presses differently, and Button Actions recognizes the com
 
 | Device sends | For example | What happens |
 | --- | --- | --- |
-| A press and a release | Lutron (`press`, `release`), Matter (`initial_press`, `short_release`, `long_release`) | Button Actions times short, double and long presses itself. |
+| A press and a release | Lutron's button event (`press`, `release`), a Pico's event entity on Home Assistant 2026.11 (`press_start`, `press_end`), Matter (`initial_press`, `short_release`, `long_release`) | Button Actions times short, double and long presses itself. |
 | A press only | Matter switches without release support (`initial_press`) | Each press counts as a full press. Double presses work; long presses can't be detected. |
 | Gestures it detects itself | Matter multi-press (`multi_press_1`, `multi_press_2`, `long_press`), Zigbee (`single`, `double`, `hold`) | Those gestures are used as they are. Hold-to-repeat still works. |
 
@@ -160,7 +167,7 @@ The **Button Actions** sidebar panel provides an overview of every remote and it
 | ⚙ next to a button | Set its short press, double press, long press and release-after-long-press actions, whether the long press repeats while held, whether to detect every gesture, and which event entities feed it. |
 | ⋮ next to a button | Delete that button. Its gesture entity is removed too. |
 | ⚙ on the remote | Click timing for the whole remote: double-press window, hold time and repeat interval. |
-| ⋮ on the remote → **Reconfigure** | Rename the remote, turn double and long press support on or off, link it to the device its buttons belong to, check or change what each event type means, or switch it to a Lutron Caséta Pico. |
+| ⋮ on the remote → **Reconfigure** | Rename the remote, turn double and long press support on or off, link it to the device its buttons belong to, check or change what each event type means, or switch it to a Lutron Caséta keypad or Pico. On a Pico that has button event entities, you can choose those or Lutron's button event. |
 | ⋮ on the remote → **Download diagnostics** | Save the remote's config and live button state, to attach to a bug report. |
 | **Add button** at the top of the page | Add a button you skipped during setup to one of your remotes. |
 
@@ -172,7 +179,9 @@ Actions get these variables for templates: `remote` (the remote's name), `button
 
 ### Switching a remote to core Lutron
 
-Remotes imported from the blueprint use event entities from lutron-caseta-events. To read presses straight from the Lutron Caséta integration instead, open **Reconfigure** on the remote and pick its Pico. If the event entities belong to the Pico's device, it's already filled in. Every button keeps its actions, and once all your remotes are switched you no longer need lutron-caseta-events.
+Remotes imported from the blueprint use event entities from lutron-caseta-events. To read presses from the Lutron Caséta integration instead, open **Reconfigure** on the remote and pick its keypad or Pico. If the event entities belong to that device, it's already filled in. Every button keeps its actions, and once all your remotes are switched you no longer need lutron-caseta-events.
+
+A Pico you already set up this way keeps its buttons and actions. On Home Assistant 2026.11 and newer it starts using Lutron's button event entities when each button still matches, because those entities report the press and the release. Open **Reconfigure** and turn **Use Lutron's button event entities** off to stay on Lutron's button event. A keypad stays on the button event: its event entities don't report a release, and long presses need one.
 
 ### Using a button in your own automations
 

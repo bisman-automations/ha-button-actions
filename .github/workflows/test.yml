@@ -26,3 +26,6 @@ concurrency:
 jobs:
   test:
     uses: bisman-automations/.github/.github/workflows/ha-test.yml@main
+    # with:
+    #   python-min: "3.13"   # hacs.json minimum is 2026.2 or older
+    #   mypy: custom_components/<domain>

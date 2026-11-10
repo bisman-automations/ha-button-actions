@@ -30,6 +30,15 @@ LUTRON_DOMAIN: Final = "lutron_caseta"
 LUTRON_BUTTON_EVENT: Final = "lutron_caseta_button_event"
 LUTRON_ACTION_PRESS: Final = "press"
 LUTRON_ACTION_RELEASE: Final = "release"
+# Core event entities (Home Assistant 2026.11, core PR 184266) use the
+# standard button vocabulary. Picos send both; keypads send press_start only.
+LUTRON_EVENT_PRESS: Final = "press_start"
+LUTRON_EVENT_RELEASE: Final = "press_end"
+# Entry data. "bus" means keep lutron_caseta_button_event even when event
+# entities exist. Missing means: use event entities where they report a
+# press and a release, and the bus event otherwise.
+CONF_LUTRON_INPUT: Final = "lutron_input"
+LUTRON_INPUT_BUS: Final = "bus"
 
 # Button slots. Pico-shaped remotes use named slots; numbered remotes use
 # button_1 ... button_12. Pico scene buttons are button_1 ... button_4.
@@ -97,6 +106,31 @@ CONF_SUPPORTS_LONG: Final = "supports_long"
 CONF_BUTTON_COUNT: Final = "button_count"
 
 
+def slot_sort_key(slot: str) -> tuple[int, int | str]:
+    """Pico order first, then any other button name A to Z.
+
+    Keypad and shade-remote buttons are named by Lutron ("Morning",
+    "open_all") and are not in DISPLAY_ORDER.
+    """
+    if slot in DISPLAY_ORDER:
+        return (0, DISPLAY_ORDER.index(slot))
+    return (1, slot.casefold())
+
+
+def slot_label(slot: str) -> str:
+    """The name shown for a button.
+
+    Pico slots keep the names the UI has always used ("On button"). A keypad
+    button's slot is the name Lutron gave it; underscores become spaces.
+    """
+    if slot in SLOT_TITLES:
+        return SLOT_TITLES[slot]
+    text = slot.replace("_", " ").strip()
+    if text.lower() == text:
+        return text.title()
+    return text
+
+
 def slot_number(slot: str) -> int:
     """The N in button_N."""
     return int(slot.rsplit("_", 1)[1])
@@ -114,8 +148,7 @@ def button_positions(slots: list[str] | tuple[str, ...]) -> dict[str, int]:
     Home Assistant lists entities and subentries alphabetically, so these
     numbers are put at the front of names to keep the remote's order.
     """
-    present = set(slots)
-    ordered = [slot for slot in DISPLAY_ORDER if slot in present]
+    ordered = sorted(dict.fromkeys(slots), key=slot_sort_key)
     return {slot: index for index, slot in enumerate(ordered, start=1)}
 
 
@@ -126,9 +159,9 @@ def numbered_title(position: int, slot: str) -> str:
 
 def button_title(layout: str, slot: str, slots: list[str] | tuple[str, ...]) -> str:
     """The title a button gets on the integration page."""
-    if layout == LAYOUT_NUMBERED:
+    if layout == LAYOUT_NUMBERED and slot in NUMBERED_SLOTS:
         return f"Button {numbered_label(slot, slots)}"
-    return numbered_title(button_positions(slots)[slot], slot)
+    return f"{button_positions(slots)[slot]} · {slot_label(slot)}"
 
 
 # Pico subentry titles. Stored with the subentry, so plain English.

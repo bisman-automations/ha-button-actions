@@ -11,10 +11,11 @@ from homeassistant.components.homeassistant.triggers import event as event_trigg
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_DEVICE_ID, CONF_DOMAIN, CONF_PLATFORM, CONF_TYPE
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
+import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.trigger import TriggerActionType, TriggerInfo
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN, GESTURE_EVENT, GESTURES, SLOTS
+from .const import DOMAIN, GESTURE_EVENT, GESTURES
 from .controller import buttons_from_entry, supported_gestures
 
 CONF_SUBTYPE = "subtype"
@@ -23,7 +24,8 @@ CONF_ENTRY_ID = "entry_id"
 TRIGGER_SCHEMA = DEVICE_TRIGGER_BASE_SCHEMA.extend(
     {
         vol.Required(CONF_TYPE): vol.In(GESTURES),
-        vol.Required(CONF_SUBTYPE): vol.In(SLOTS),
+        # Pico slots, numbered slots, or a Lutron keypad button name.
+        vol.Required(CONF_SUBTYPE): cv.string,
         # Which remote, when several share one device.
         vol.Optional(CONF_ENTRY_ID): str,
     }

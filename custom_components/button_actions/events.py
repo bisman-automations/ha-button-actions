@@ -3,6 +3,9 @@
 Different integrations report buttons differently:
 
 - Lutron (lutron-caseta-events) and many others: ``press`` then ``release``.
+- Core Lutron Caséta on Home Assistant 2026.11: ``press_start`` when the
+  button goes down and, on a Pico or shade remote, ``press_end`` when it is
+  released. A keypad sends ``press_start`` only.
 - Matter momentary switches: ``initial_press``, then ``short_release`` or
   ``long_release`` (``long_press`` fires mid-hold). Some send no release.
 - Matter multi-press switches count presses themselves: ``multi_press_1``,
@@ -42,11 +45,16 @@ _NAMED: Final = {
     "pressed": ROLE_PRESS,
     "down": ROLE_PRESS,
     "initial_press": ROLE_PRESS,
+    # Standard button vocabulary (architecture #1502). Core Lutron Caséta
+    # uses these two for a physical press and release.
+    "press_start": ROLE_PRESS,
     "release": ROLE_RELEASE,
     "released": ROLE_RELEASE,
     "up": ROLE_RELEASE,
+    "press_end": ROLE_RELEASE,
     "short_release": ROLE_RELEASE,
     "long_release": ROLE_RELEASE,
+    "long_press_end": ROLE_RELEASE,
     "hold_release": ROLE_RELEASE,
     "click": ROLE_CLICK,
     "single": ROLE_SINGLE,
@@ -62,6 +70,7 @@ _NAMED: Final = {
     "held": ROLE_HOLD,
     "long": ROLE_HOLD,
     "long_press": ROLE_HOLD,
+    "long_press_start": ROLE_HOLD,
 }
 
 

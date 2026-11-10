@@ -10,7 +10,8 @@ asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
 # The oldest Python the minimum Home Assistant in hacs.json runs on.
-target-version = "py313"
+# 2026.8 needs Python 3.14 (3.13 only through Home Assistant 2026.2).
+target-version = "py314"
 line-length = 88
 
 [tool.ruff.lint]

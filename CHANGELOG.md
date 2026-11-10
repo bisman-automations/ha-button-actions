@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-11-10
+
+### Added
+
+- **Lutron keypads, shade remotes and Athena.** Pick a keypad or Pico from Lutron Caséta, including RadioRA 3, HomeWorks QSX, Sunnata, seeTouch and Athena. Every button Lutron reports can be used, not only a Pico's On, Raise, Middle, Lower and Off.
+- On Home Assistant 2026.11 and newer, a button whose Lutron event entity reports a press and a release (a Pico or shade remote) uses that entity. A keypad's event entity reports the press only, so presses stay on Lutron's button event, which still includes the release that long press, double press and hold-to-repeat are timed from. Home Assistant 2026.8 through 2026.10 have no such entities and keep using the button event.
+
+### Changed
+
+- A Pico remote you already set up keeps its buttons, actions and ids. It switches to Lutron's button event entities on its own when every button still matches. Open **Reconfigure** and turn **Use Lutron's button event entities** off to keep reading Lutron's button event.
+- The same keypad or Pico can't be set up twice, whether the other remote reads Lutron's button event or event entities.
+- Installation leads with the Marketplace on Home Assistant 2026.11 and newer: search for Button Actions. HACS stays for 2026.10 and older, and adding the repository by hand is the fallback.
+- Ruff 0.17.4, up from 0.17.2. The newest Home Assistant test harness is still 2026.10.4, and the 2026.8 minimum stays on its current pin.
+
 ## [1.11.0] - 2026-10-30
 
 ### Added
@@ -223,6 +237,7 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
+[1.12.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.10.1...v1.11.0
 [1.10.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.9.1...v1.10.0

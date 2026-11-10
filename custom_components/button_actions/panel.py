@@ -39,7 +39,6 @@ from .const import (
     DEFAULT_DOUBLE_MS,
     DEFAULT_HOLD_MS,
     DEFAULT_REPEAT_MS,
-    DISPLAY_ORDER,
     DOMAIN,
     GESTURES,
     LAYOUT_PICO,
@@ -177,17 +176,15 @@ def _panel_config(hass: HomeAssistant) -> dict[str, list[dict[str, Any]]]:
             for sub in entry.subentries.values()
             if sub.subentry_type == SUBENTRY_BUTTON
         }
-        # Pico remotes have no event entities; their source is the Pico.
+        # A Lutron remote with no event entities is read from the bus event.
+        # One that prefers event entities still depends on the Lutron device.
         source_available = (
             _lutron_source_available(hass, entry)
             if entry.data.get(CONF_SOURCE) == SOURCE_LUTRON
             else True
         )
         buttons = []
-        ordered_buttons = sorted(
-            buttons_from_entry(entry),
-            key=lambda button: DISPLAY_ORDER.index(button.slot),
-        )
+        ordered_buttons = buttons_from_entry(entry)
         for button in ordered_buttons:
             subentry = subentries.get(button.slot)
             if subentry is None:

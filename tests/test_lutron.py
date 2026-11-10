@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import itertools
 from unittest.mock import patch
 
 import pytest
@@ -17,17 +18,20 @@ from custom_components.button_actions.const import (
     CONF_DOUBLE_MS,
     CONF_ENTITIES,
     CONF_HOLD_MS,
+    CONF_LUTRON_INPUT,
     CONF_PICO_BUTTONS,
     CONF_REPEAT,
     CONF_REPEAT_MS,
     CONF_SLOT,
     CONF_SOURCE,
     DOMAIN,
+    LUTRON_INPUT_BUS,
     SOURCE_EVENT_ENTITY,
     SOURCE_LUTRON,
     SUBENTRY_BUTTON,
+    slot_label,
 )
-from custom_components.button_actions.lutron import async_pico_buttons
+from custom_components.button_actions.lutron import LutronButton, async_pico_buttons
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigSubentryData
 from homeassistant.core import HomeAssistant
@@ -52,14 +56,16 @@ def pico(hass: HomeAssistant) -> str:
     return device.id
 
 
+def _infos(slots: list[str], **kwargs) -> list[LutronButton]:
+    return [LutronButton(slot=slot, name=slot_label(slot), **kwargs) for slot in slots]
+
+
 @pytest.fixture(autouse=True)
-def mock_pico_buttons():
-    with (
-        patch(
-            "custom_components.button_actions.config_flow.async_pico_buttons",
-            return_value=PICO_BUTTONS,
-        ) as mock,
-    ):
+def mock_lutron_buttons():
+    with patch(
+        "custom_components.button_actions.config_flow.async_lutron_buttons",
+        return_value=_infos(PICO_BUTTONS),
+    ) as mock:
         yield mock
 
 
@@ -137,6 +143,9 @@ async def test_setup_from_pico(hass: HomeAssistant, pico: str) -> None:
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {"device_id": pico}
         )
+        assert result["step_id"] == "lutron_confirm"
+        assert "2026.11" in result["description_placeholders"]["source_note"]
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "Kitchen Pico"
     assert result["data"] == {
@@ -149,9 +158,9 @@ async def test_setup_from_pico(hass: HomeAssistant, pico: str) -> None:
 
 
 async def test_setup_rejects_non_pico(
-    hass: HomeAssistant, pico: str, mock_pico_buttons
+    hass: HomeAssistant, pico: str, mock_lutron_buttons
 ) -> None:
-    mock_pico_buttons.return_value = []
+    mock_lutron_buttons.return_value = []
     result = await _start_lutron_flow(hass)
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"device_id": pico}
@@ -384,9 +393,9 @@ async def test_switch_event_remote_to_pico(hass: HomeAssistant, pico: str) -> No
 
 
 async def test_switch_blocked_when_pico_lacks_buttons(
-    hass: HomeAssistant, pico: str, mock_pico_buttons
+    hass: HomeAssistant, pico: str, mock_lutron_buttons
 ) -> None:
-    mock_pico_buttons.return_value = ["on"]
+    mock_lutron_buttons.return_value = _infos(["on"])
     entry = _event_remote(hass, pico)
     result = await _reconfigure(hass, entry)
     result = await hass.config_entries.flow.async_configure(
@@ -411,3 +420,281 @@ async def test_reconfigure_pico_remote_rename(hass: HomeAssistant, pico: str) ->
     assert result["reason"] == "reconfigure_successful"
     assert entry.title == "Island Pico"
     assert entry.data["device_id"] == pico
+
+
+# ---------------------------------------------------------------------------
+# Home Assistant 2026.11 event entities
+# ---------------------------------------------------------------------------
+
+_PRESS_TYPES = ("press_start", "press_end")
+_ticks = itertools.count()
+
+
+def _triggers(device_id: str, slots: list[str]) -> dict:
+    return {
+        device_id: [
+            {"domain": "lutron_caseta", "type": action, "subtype": slot}
+            for action in ("press", "release")
+            for slot in slots
+        ]
+    }
+
+
+def _core_button(hass: HomeAssistant, device_id: str, slot: str, name: str, types):
+    """A core lutron_caseta event entity, as Home Assistant 2026.11 creates."""
+    return er.async_get(hass).async_get_or_create(
+        "event",
+        "lutron_caseta",
+        f"{device_id}-{slot}",
+        suggested_object_id=f"kitchen_{slot}",
+        original_name=name,
+        device_id=device_id,
+        capabilities={"event_types": list(types)},
+    )
+
+
+def _entity_press(hass: HomeAssistant, entity_id: str, event_type: str, types) -> None:
+    stamp = (dt_util.utcnow() + timedelta(microseconds=next(_ticks))).isoformat()
+    hass.states.async_set(
+        entity_id,
+        stamp,
+        {"event_type": event_type, "event_types": list(types)},
+    )
+
+
+async def test_keypad_buttons_include_names_outside_pico_slots(hass: HomeAssistant):
+    """Keypads, shade remotes and Athena use Lutron's own button names."""
+    triggers = _triggers("dev", ["Morning", "Away", "on"])
+    triggers["dev"].append(
+        {"domain": "lutron_caseta", "type": "press", "subtype": "open_all"}
+    )
+    with patch(
+        "custom_components.button_actions.lutron.async_get_device_automations",
+        return_value=triggers,
+    ):
+        from custom_components.button_actions.lutron import async_lutron_buttons
+
+        found = await async_lutron_buttons(hass, "dev")
+    assert [button.slot for button in found] == ["on", "Away", "Morning", "open_all"]
+
+
+async def test_setup_keypad_explains_missing_release(
+    hass: HomeAssistant, pico: str, mock_lutron_buttons
+) -> None:
+    """A keypad event entity has no release, so the bus event keeps the timing."""
+    mock_lutron_buttons.return_value = [
+        LutronButton(
+            slot="Morning",
+            name="Morning",
+            entity_id="event.hall_morning",
+            event_types=("press_start",),
+        ),
+        LutronButton(
+            slot="Away",
+            name="Away",
+            entity_id="event.hall_away",
+            event_types=("press_start",),
+        ),
+    ]
+    with patch("custom_components.button_actions.async_setup_entry", return_value=True):
+        result = await _start_lutron_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"device_id": pico, "name": "Hall Keypad"}
+        )
+        assert result["step_id"] == "lutron_confirm"
+        note = result["description_placeholders"]["source_note"]
+        assert "release" in note
+        assert "Keypads" in note
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_PICO_BUTTONS] == ["Morning", "Away"]
+    assert all(
+        sub.data[CONF_ENTITIES] == [] for sub in result["result"].subentries.values()
+    )
+
+
+async def test_keypad_cannot_be_added_twice(
+    hass: HomeAssistant, pico: str, mock_lutron_buttons
+) -> None:
+    mock_lutron_buttons.return_value = [
+        LutronButton(slot="Morning", name="Morning"),
+        LutronButton(slot="Away", name="Away"),
+    ]
+    with patch("custom_components.button_actions.async_setup_entry", return_value=True):
+        result = await _start_lutron_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"device_id": pico}
+        )
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    result = await _start_lutron_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"device_id": pico}
+    )
+    assert result["errors"] == {"device_id": "pico_in_use"}
+
+
+async def test_bus_fallback_without_event_entities(
+    hass: HomeAssistant, pico: str
+) -> None:
+    """2026.8 through 2026.10 have no Lutron event entities, so the bus is used."""
+    calls = async_mock_service(hass, "light", "turn_on")
+    entry = await _lutron_remote(hass, pico, {"on": {"short_press": LIGHT_ON}})
+    assert set(entry.runtime_data._detectors) == set(PICO_BUTTONS)
+    _press(hass, pico, "on", "press")
+    _press(hass, pico, "on", "release")
+    await _settle(hass)
+    assert len(calls) == 1
+
+
+async def test_existing_pico_migrates_when_events_report_release(
+    hass: HomeAssistant, pico: str
+) -> None:
+    """Same entry, slots, actions and unique ids; only the entity id is filled in."""
+    on = _core_button(hass, pico, "on", "On", _PRESS_TYPES)
+    off = _core_button(hass, pico, "off", "Off", _PRESS_TYPES)
+    calls = async_mock_service(hass, "light", "turn_on")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Kitchen Pico",
+        minor_version=2,
+        data={
+            CONF_SOURCE: SOURCE_LUTRON,
+            "device_id": pico,
+            CONF_PICO_BUTTONS: ["on", "off"],
+        },
+        options=_timing(),
+        subentries_data=[
+            _button("on", [], {"short_press": LIGHT_ON}),
+            _button("off", []),
+        ],
+    )
+    entry_id = entry.entry_id
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.button_actions.lutron.async_get_device_automations",
+        return_value=_triggers(pico, ["on", "off"]),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await _settle(hass)
+
+    assert entry.entry_id == entry_id
+    assert entry.data[CONF_SOURCE] == SOURCE_LUTRON
+    subs = {sub.unique_id: sub for sub in entry.subentries.values()}
+    assert set(subs) == {"on", "off"}
+    assert subs["on"].data[CONF_ACTIONS] == {"short_press": LIGHT_ON}
+    assert subs["on"].data[CONF_ENTITIES] == [on.entity_id]
+    assert subs["off"].data[CONF_ENTITIES] == [off.entity_id]
+
+    hass.states.async_set(on.entity_id, "unknown", {"event_types": list(_PRESS_TYPES)})
+    await _settle(hass)
+    _entity_press(hass, on.entity_id, "press_start", _PRESS_TYPES)
+    await _settle(hass)
+    _entity_press(hass, on.entity_id, "press_end", _PRESS_TYPES)
+    await _settle(hass)
+    assert len(calls) == 1
+
+    # The bus event for that button is not listened to as well.
+    _press(hass, pico, "on", "press")
+    _press(hass, pico, "on", "release")
+    await _settle(hass, 1)
+    assert len(calls) == 1
+
+
+async def test_keypad_release_stays_on_the_bus_event(
+    hass: HomeAssistant, pico: str
+) -> None:
+    morning = _core_button(hass, pico, "Morning", "Morning", ["press_start"])
+    calls = async_mock_service(hass, "light", "turn_on")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Hall Keypad",
+        minor_version=2,
+        data={
+            CONF_SOURCE: SOURCE_LUTRON,
+            "device_id": pico,
+            CONF_PICO_BUTTONS: ["Morning"],
+        },
+        options=_timing(),
+        subentries_data=[_button("Morning", [], {"short_press": LIGHT_ON})],
+    )
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.button_actions.lutron.async_get_device_automations",
+        return_value=_triggers(pico, ["Morning"]),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await _settle(hass)
+
+    sub = next(iter(entry.subentries.values()))
+    assert sub.unique_id == "Morning"
+    assert sub.data[CONF_ENTITIES] == []
+    assert "Morning" in entry.runtime_data._detectors
+
+    hass.states.async_set(
+        morning.entity_id, "unknown", {"event_types": ["press_start"]}
+    )
+    await _settle(hass)
+    _entity_press(hass, morning.entity_id, "press_start", ["press_start"])
+    await _settle(hass, 1)
+    assert len(calls) == 0
+
+    _press(hass, pico, "Morning", "press")
+    _press(hass, pico, "Morning", "release")
+    await _settle(hass)
+    assert len(calls) == 1
+
+
+async def test_reconfigure_opts_out_of_event_entities(
+    hass: HomeAssistant, pico: str, mock_lutron_buttons
+) -> None:
+    on = _core_button(hass, pico, "on", "On", _PRESS_TYPES)
+    mock_lutron_buttons.return_value = [
+        LutronButton(
+            slot=slot,
+            name=slot_label(slot),
+            entity_id=f"event.kitchen_{slot}",
+            event_types=_PRESS_TYPES,
+        )
+        for slot in PICO_BUTTONS
+    ]
+    calls = async_mock_service(hass, "light", "turn_on")
+    with patch(
+        "custom_components.button_actions.lutron.async_get_device_automations",
+        return_value=_triggers(pico, PICO_BUTTONS),
+    ):
+        entry = await _lutron_remote(hass, pico, {"on": {"short_press": LIGHT_ON}})
+        assert next(
+            sub.data[CONF_ENTITIES]
+            for sub in entry.subentries.values()
+            if sub.unique_id == "on"
+        ) == [on.entity_id]
+
+        result = await _reconfigure(hass, entry)
+        assert "use_event_entities" in {
+            key.schema for key in result["data_schema"].schema
+        }
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                "name": "Kitchen Pico",
+                "device_id": pico,
+                "use_event_entities": False,
+            },
+        )
+        await _settle(hass)
+
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_LUTRON_INPUT] == LUTRON_INPUT_BUS
+    assert all(sub.data[CONF_ENTITIES] == [] for sub in entry.subentries.values())
+    hass.states.async_set(on.entity_id, "unknown", {"event_types": list(_PRESS_TYPES)})
+    await _settle(hass)
+    _entity_press(hass, on.entity_id, "press_start", _PRESS_TYPES)
+    _entity_press(hass, on.entity_id, "press_end", _PRESS_TYPES)
+    await _settle(hass, 1)
+    assert len(calls) == 0
+    _press(hass, pico, "on", "press")
+    _press(hass, pico, "on", "release")
+    await _settle(hass)
+    assert len(calls) == 1

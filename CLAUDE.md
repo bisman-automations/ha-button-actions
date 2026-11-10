@@ -13,13 +13,17 @@ UI, so remotes need no automations.
 - `config_flow.py`: user flow (menu: pick a device, import blueprint, import
   all, duplicate, by hand), reconfigure, options (timing) and the `button`
   subentry flow. One subentry per physical button.
-- `controller.py`: per-remote runtime; listens to event entities or core
-  `lutron_caseta_button_event`, runs actions, fires `button_actions_gesture`.
+- `controller.py`: per-remote runtime; listens to event entities, or for
+  Lutron to core button event entities when they report a press and a
+  release (Home Assistant 2026.11) and otherwise to
+  `lutron_caseta_button_event`. Runs actions, fires `button_actions_gesture`.
 - `gesture.py`: pure state machine (no HA imports); unit tested with a fake clock.
 - `events.py`: maps a device's event types to roles (press, release, click,
   single, double, hold, ignore).
 - `device_trigger.py`, `event.py`, `issues.py`/`repairs.py`, `diagnostics.py`,
-  `lutron.py`. Blueprint import lives in `config_flow.py`.
+  `lutron.py` (Pico, keypad, shade-remote and Athena buttons from core
+  Lutron Caséta device triggers, plus 2026.11 event entities). Blueprint
+  import lives in `config_flow.py`.
 - `panel.py` + `frontend/button-actions-panel.js`: admin-only sidebar dashboard.
   Read-only summary over websocket (`button_actions/panel/config`, never
   returns action bodies), live updates via `button_actions/panel/subscribe`;

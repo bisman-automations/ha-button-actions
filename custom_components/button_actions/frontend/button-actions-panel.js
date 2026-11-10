@@ -313,8 +313,15 @@ class ButtonActionsPanel extends HTMLElement {
   _remoteCard(remote) {
     const title = this._escape(remote.title);
     const healthy = remote.state === "loaded";
+    const usesLutronEvents =
+      remote.source === "lutron_caseta" &&
+      remote.buttons.some((button) => button.entities.length);
     const source =
-      remote.source === "lutron_caseta" ? "Lutron Caséta" : "Event entities";
+      remote.source === "lutron_caseta"
+        ? usesLutronEvents
+          ? "Lutron Caséta events"
+          : "Lutron Caséta"
+        : "Event entities";
     const buttons = remote.buttons.length
       ? remote.buttons.map((button) => this._buttonRow(remote, button)).join("")
       : `<div class="empty-buttons">No buttons configured.</div>`;
@@ -358,7 +365,7 @@ class ButtonActionsPanel extends HTMLElement {
       : `<span class="muted">No actions assigned</span>`;
     const entities = button.entities.length
       ? button.entities.map((entity) => `<code>${this._escape(entity)}</code>`).join("")
-      : `<span class="muted">Read directly from Lutron</span>`;
+      : `<span class="muted">Read from Lutron's button event</span>`;
     return `
       <div class="button-row" data-search="${this._searchText(
         [button.title, button.slot, ...button.entities, ...button.gestures].join(" "),
@@ -662,7 +669,7 @@ class ButtonActionsPanel extends HTMLElement {
       manual: "Create a remote manually",
       import_pico: "Read presses directly from the Pico",
       import_entities: "Use event entities",
-      duplicate_pico: "Read presses directly from the Pico",
+      duplicate_pico: "A Lutron keypad or Pico",
       duplicate_entities: "Use event entities",
       duplicate_numbered: "Create numbered buttons",
     };
@@ -791,7 +798,7 @@ class ButtonActionsPanel extends HTMLElement {
         <h3>Buttons</h3>
         <div class="dialog-button-list">${remote.buttons.length ? remote.buttons.map((button) => `
           <div class="dialog-remote">
-            <div><strong>${this._escape(button.title)}</strong><small>${this._escape(button.entities.join(", ") || "Read directly from Lutron")}</small></div>
+            <div><strong>${this._escape(button.title)}</strong><small>${this._escape(button.entities.join(", ") || "Read from Lutron's button event")}</small></div>
             <button class="secondary" data-action="edit-button" data-entry-id="${this._escape(entryId)}" data-subentry-id="${this._escape(button.subentry_id)}">Edit button</button>
           </div>`).join("") : `<p class="muted">No buttons are configured.</p>`}</div>
       </div>`;
