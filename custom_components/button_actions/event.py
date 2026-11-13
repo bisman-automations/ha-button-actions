@@ -19,6 +19,9 @@ from .const import (
 )
 from .controller import supported_gestures
 
+# Coordinator or push updates; nothing polls on its own.
+PARALLEL_UPDATES = 0
+
 if TYPE_CHECKING:
     from . import ButtonActionsConfigEntry
 

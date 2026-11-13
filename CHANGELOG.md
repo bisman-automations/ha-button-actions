@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.1] - 2026-11-13
+
+### Changed
+
+- **Smoother updates.** Each kind of entity now tells Home Assistant how many updates it can take at once, as Home Assistant recommends. Nothing changes in how anything looks or works.
+
 ## [1.12.0] - 2026-11-10
 
 ### Added
@@ -237,6 +243,7 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
+[1.12.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.0...v1.12.1
 [1.12.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.10.1...v1.11.0
 [1.10.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.10.0...v1.10.1
