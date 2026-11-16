@@ -14,9 +14,10 @@ class TestHTMLElement {
   }
 }
 
-function createPanel() {
+function createPanel(extra = {}) {
   let Panel;
   const context = {
+    ...extra,
     HTMLElement: TestHTMLElement,
     customElements: {
       define(_name, element) {
@@ -387,4 +388,32 @@ test("popups show a spinner while a flow opens", async () => {
   panel._hass = { callApi: () => new Promise(() => {}) };
   panel._startFlow("config", "Add or import remote", { handler: "button_actions" });
   assert.match(dialogs[0][1], /role="status"><span class="spinner small"[^>]*><\/span>Opening configuration…/);
+});
+
+test("a hidden page loads once when it's seen again", async () => {
+  const listeners = {};
+  const document = {
+    hidden: true,
+    addEventListener: (name, fn) => {
+      listeners[name] = fn;
+    },
+    removeEventListener: (name) => {
+      delete listeners[name];
+    },
+  };
+  const panel = await createPanel({ document, setTimeout, clearTimeout });
+  let loads = 0;
+  panel._load = async () => {
+    loads += 1;
+  };
+  panel._scheduleRefresh();
+  panel._scheduleRefresh();
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  assert.equal(loads, 0); // hidden: nothing loaded
+  document.hidden = false;
+  listeners.visibilitychange();
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  assert.equal(loads, 1); // seen again: one load
+  panel.disconnectedCallback();
+  assert.equal(listeners.visibilitychange, undefined);
 });

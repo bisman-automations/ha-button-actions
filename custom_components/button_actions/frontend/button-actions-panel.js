@@ -34,6 +34,10 @@ class ButtonActionsPanel extends HTMLElement {
       this._unsub = null;
     }
     clearTimeout(this._refreshTimer);
+    if (this._onVisible) {
+      document.removeEventListener("visibilitychange", this._onVisible);
+      this._onVisible = null;
+    }
   }
 
   // The first load shows a skeleton of the page. Later loads keep the page and
@@ -90,6 +94,20 @@ class ButtonActionsPanel extends HTMLElement {
   }
 
   _scheduleRefresh() {
+    if (typeof document !== "undefined" && document.hidden) {
+      // Nobody's looking (another tab, a screen that's off): load once when
+      // the page is seen again instead of after every change.
+      this._stale = true;
+      if (!this._onVisible) {
+        this._onVisible = () => {
+          if (document.hidden || !this._stale) return;
+          this._stale = false;
+          this._scheduleRefresh();
+        };
+        document.addEventListener("visibilitychange", this._onVisible);
+      }
+      return;
+    }
     clearTimeout(this._refreshTimer);
     this._refreshTimer = setTimeout(() => this._load({ quiet: true }), 300);
   }

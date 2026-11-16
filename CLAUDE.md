@@ -28,6 +28,8 @@ UI, so remotes need no automations.
   Read-only summary over websocket (`button_actions/panel/config`, never
   returns action bodies), live updates via `button_actions/panel/subscribe`;
   all edits go through HA's existing config/options/subentry flow REST APIs.
+  `_scheduleRefresh` waits while `document.hidden` and loads once on
+  `visibilitychange`.
 - `strings.json` and `translations/en.json` must stay identical.
 
 ## Home Assistant compatibility
