@@ -229,3 +229,43 @@ async def test_pico_remote_availability(hass: HomeAssistant, lutron_state) -> No
     assert remote["buttons"][0]["available"] is (lutron_state == "loaded")
     # Don't let teardown try to unload the real Lutron Caséta integration.
     lutron.mock_state(hass, ConfigEntryState.NOT_LOADED)
+
+
+async def test_pico_remote_unavailable_on_another_integrations_device(
+    hass: HomeAssistant,
+) -> None:
+    """A loaded entry only counts when it's the Lutron Caséta entry of the Pico.
+
+    Since Home Assistant 2026.8 a device has a single ``config_entry_id``; a
+    device owned by some other, loaded integration isn't a working Pico.
+    """
+    other = MockConfigEntry(domain="zha", state=ConfigEntryState.LOADED)
+    other.add_to_hass(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=other.entry_id,
+        identifiers={("zha", "abc")},
+        name="Zigbee Remote",
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Not A Pico",
+        minor_version=3,
+        data={
+            "source": "lutron_caseta",
+            "device_id": device.id,
+            "pico_buttons": ["on"],
+        },
+        subentries_data=[
+            ConfigSubentryData(
+                data={"slot": "on", "entities": [], "actions": {}},
+                subentry_type="button",
+                title="On button",
+                unique_id="on",
+            )
+        ],
+    )
+    entry.add_to_hass(hass)
+    (remote,) = _panel_config(hass)["remotes"]
+    assert remote["buttons"][0]["available"] is False
+    # Don't let teardown try to unload the real ZHA integration.
+    other.mock_state(hass, ConfigEntryState.NOT_LOADED)

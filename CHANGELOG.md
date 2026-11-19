@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.4] - 2026-11-19
+
+### Changed
+
+- Checking whether a Pico's Lutron Caséta is running, and finding buttons on devices connected through a hub, now read the device's single config entry directly, as Home Assistant 2026.8 and newer store it. Nothing changes in how anything works.
+- The tests give each test its own Home Assistant config folder. The blueprint import tests shared one `automations.yaml`, so running the tests in parallel (`pytest -n`) could make an import show its form again instead of adding the remote. Importing in Home Assistant was never affected.
+- Ruff 0.17.6, up from 0.17.4. The newest Home Assistant test harness is still 2026.10.4, and the 2026.8 minimum stays on its current pin.
+
+### Security
+
+- **Diagnostics leave out secrets.** A downloaded diagnostics file no longer includes codes, PINs, passwords, tokens, API keys or webhook ids from a remote's settings or its buttons' actions, however deeply they're nested. They show as `**REDACTED**`, and everything else about what a button does stays, so the file is still useful in a bug report.
+
 ## [1.12.3] - 2026-11-15
 
 ### Changed
@@ -255,6 +267,7 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
+[1.12.4]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.3...v1.12.4
 [1.12.3]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.2...v1.12.3
 [1.12.2]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.1...v1.12.2
 [1.12.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.0...v1.12.1

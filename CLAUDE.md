@@ -20,7 +20,11 @@ UI, so remotes need no automations.
 - `gesture.py`: pure state machine (no HA imports); unit tested with a fake clock.
 - `events.py`: maps a device's event types to roles (press, release, click,
   single, double, hold, ignore).
-- `device_trigger.py`, `event.py`, `issues.py`/`repairs.py`, `diagnostics.py`,
+- `diagnostics.py`: the remote's data, options and each button's actions
+  and live state. `TO_REDACT` (codes, PINs, passwords, tokens, API keys,
+  webhook ids) is applied with `async_redact_data` at any depth; add a key
+  there when an action field could hold a secret.
+- `device_trigger.py`, `event.py`, `issues.py`/`repairs.py`,
   `lutron.py` (Pico, keypad, shade-remote and Athena buttons from core
   Lutron Caséta device triggers, plus 2026.11 event entities). Blueprint
   import lives in `config_flow.py`.
@@ -43,6 +47,8 @@ through the current release. Things that changed and bit us:
   are deprecated (the last returns None). Use `own_device()` /
   `device_belongs_to()` in `controller.py` (`async_get_device_by_identifier`,
   `config_entry_id`) and remove devices with `async_remove_device`.
+  `config_entry_id` is a single id: don't wrap it in a set or loop over it.
+  `device.primary_config_entry` is deprecated too (removal in 2027.10).
 - Never attach entities to another integration's device with `device_info`;
   set `entity.device_entry` (supported since 2025.8).
 - A remote linked to a physical device has no gesture event entities. Its own
@@ -61,6 +67,11 @@ and the newest (`requirements_test.txt`, Python 3.14). Deprecation calls raise
 in tests on newer Home Assistant, which is how the 2026.8+ issues above were
 found. Tests that need a behaviour only one version has are skipped with
 `pytest.mark.skipif` on a `hasattr` check.
+- `tests/conftest.py` gives every test that uses `hass` its own config
+  directory (`tmp_path`). The harness's shared `testing_config` folder made
+  the blueprint import tests race under `pytest -n` (one worker replaced
+  another's `automations.yaml`, so the import showed `not_blueprint`). Write
+  files through `hass.config.path()`, never into the harness folder.
 - Unload the platforms before stopping the controller, and stop it only when
   they unloaded, so a failed unload leaves the remote working.
 

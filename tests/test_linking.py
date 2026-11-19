@@ -11,6 +11,7 @@ from pytest_homeassistant_custom_component.common import (
     async_mock_service,
 )
 
+from custom_components.button_actions.config_flow import _button_event_entries
 from custom_components.button_actions.const import (
     CONF_ACTIONS,
     CONF_DOUBLE_MS,
@@ -510,3 +511,47 @@ async def test_second_remote_on_same_device(hass: HomeAssistant) -> None:
     assert all(_is_linked(hass, own, _device.id) for own in owns)
     assert er.async_entries_for_config_entry(er.async_get(hass), first.entry_id) == []
     assert er.async_entries_for_config_entry(er.async_get(hass), second.entry_id) == []
+
+
+async def test_connected_devices_only_from_the_hubs_entry(hass: HomeAssistant) -> None:
+    """Buttons on a device connected via the hub count only from the hub's entry.
+
+    A device has one ``config_entry_id`` (Home Assistant 2026.8+). Another
+    integration's device that happens to sit behind the same hub isn't one of
+    the hub's own button devices.
+    """
+    matter = MockConfigEntry(domain="matter")
+    matter.add_to_hass(hass)
+    other = MockConfigEntry(domain="zha")
+    other.add_to_hass(hass)
+    devices = dr.async_get(hass)
+    hub = devices.async_get_or_create(
+        config_entry_id=matter.entry_id,
+        identifiers={("matter", "bridge")},
+        name="Hub",
+    )
+    own_child = devices.async_get_or_create(
+        config_entry_id=matter.entry_id,
+        identifiers={("matter", "buttons")},
+        name="Hub Buttons",
+    )
+    foreign_child = devices.async_get_or_create(
+        config_entry_id=other.entry_id,
+        identifiers={("zha", "remote")},
+        name="Zigbee Remote",
+    )
+    for device in (own_child, foreign_child):
+        devices.async_update_device(device.id, via_device_id=hub.id)
+    registry = er.async_get(hass)
+    own = registry.async_get_or_create(
+        "event", "matter", "hub-button", config_entry=matter, device_id=own_child.id
+    )
+    registry.async_get_or_create(
+        "event", "zha", "zigbee-button", config_entry=other, device_id=foreign_child.id
+    )
+
+    assert [reg.entity_id for reg in _button_event_entries(hass, hub.id)] == [
+        own.entity_id
+    ]
+    # An unknown device has nothing connected to it.
+    assert _button_event_entries(hass, "missing") == []

@@ -245,3 +245,72 @@ async def test_diagnostics(hass: HomeAssistant, boys_remote) -> None:
     assert runtime["detectors"]["event.boys_on"] == {"button": "on", "state": "idle"}
     assert runtime["compiled_actions"] == ["on.short_press", "stop.short_press"]
     assert diag["issues"] == []
+
+
+async def test_diagnostics_redacts_secrets(hass: HomeAssistant) -> None:
+    """Codes, PINs, passwords and tokens never reach a diagnostics download.
+
+    They're redacted at any depth in the remote's data, its options and its
+    buttons' actions; everything else, including what each action does, stays.
+    """
+    disarm = [
+        {
+            "action": "alarm_control_panel.alarm_disarm",
+            "target": {"entity_id": "alarm_control_panel.home"},
+            "data": {"code": "1234"},
+        },
+        {
+            "choose": [
+                {
+                    "conditions": [],
+                    "sequence": [
+                        {
+                            "action": "rest_command.unlock",
+                            "data": {"token": "abc", "password": "hunter2"},
+                        }
+                    ],
+                }
+            ],
+        },
+    ]
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Hall Remote",
+        minor_version=3,
+        data={
+            CONF_SOURCE: SOURCE_EVENT_ENTITY,
+            "press_event_type": "press",
+            "release_event_type": "release",
+            "api_key": "from-data",
+        },
+        options={
+            CONF_HOLD_MS: 600,
+            CONF_DOUBLE_MS: 300,
+            CONF_REPEAT_MS: 400,
+            "pin": "from-options",
+        },
+        subentries_data=[_button("on", ["event.hall_on"], {"short_press": disarm})],
+    )
+    entry.add_to_hass(hass)
+    hass.states.async_set("event.hall_on", "unknown")
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    remote = diag["remote"]
+    assert remote["data"]["api_key"] == "**REDACTED**"
+    assert remote["data"][CONF_SOURCE] == SOURCE_EVENT_ENTITY
+    assert remote["options"]["pin"] == "**REDACTED**"
+    assert remote["options"][CONF_HOLD_MS] == 600
+
+    (on,) = diag["buttons"]
+    first, second = on["actions"]["short_press"]
+    assert first["action"] == "alarm_control_panel.alarm_disarm"
+    assert first["data"] == {"code": "**REDACTED**"}
+    nested = second["choose"][0]["sequence"][0]["data"]
+    assert nested == {"token": "**REDACTED**", "password": "**REDACTED**"}
+    # The stored config itself is untouched.
+    stored = next(iter(entry.subentries.values())).data[CONF_ACTIONS]
+    assert stored["short_press"][0]["data"] == {"code": "1234"}
+    assert entry.data["api_key"] == "from-data"
+    assert "1234" not in str(diag)

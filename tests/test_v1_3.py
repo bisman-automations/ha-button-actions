@@ -12,6 +12,7 @@ from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     async_fire_time_changed,
     async_mock_service,
+    get_test_config_dir,
 )
 import yaml
 
@@ -381,9 +382,48 @@ async def test_import_without_pico_goes_straight_through(
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"automation": "automation.den_remote"}
     )
-    assert result["type"] is FlowResultType.CREATE_ENTRY
+    # The errors show why, if this ever returns the form again.
+    assert result["type"] is FlowResultType.CREATE_ENTRY, result.get("errors")
     assert result["result"].data[CONF_SOURCE] == SOURCE_EVENT_ENTITY
     assert result["result"].data[CONF_SOURCE_AUTOMATION] == "automation.den_remote"
+
+
+async def test_import_reads_this_tests_own_config_dir(hass: HomeAssistant) -> None:
+    """Each test gets its own config directory (tests/conftest.py).
+
+    The harness's shared ``testing_config`` folder made these import tests race
+    under ``pytest -n``: one worker overwrote another's ``automations.yaml``.
+    """
+    assert hass.config.config_dir != get_test_config_dir()
+    assert not Path(hass.config.path("automations.yaml")).exists()
+
+
+async def test_import_automation_not_in_automations_yaml(
+    hass: HomeAssistant, no_setup
+) -> None:
+    """An automation that isn't in automations.yaml keeps the form, with why.
+
+    This is what the xdist race looked like: the automation's file had been
+    replaced, so the step showed its form again instead of creating the remote.
+    """
+    await _write_automations(hass, [_blueprint("103", "den")])
+    # Registered and on, but its id isn't in the file and it isn't loaded.
+    er.async_get(hass).async_get_or_create(
+        "automation", "automation", "999", suggested_object_id="hall_remote"
+    )
+    hass.states.async_set("automation.hall_remote", "on")
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "import_blueprint"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"automation": "automation.hall_remote"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"automation": "not_blueprint"}
+    assert hass.config_entries.async_entries(DOMAIN) == []
 
 
 async def test_import_all(hass: HomeAssistant, no_setup) -> None:

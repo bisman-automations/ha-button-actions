@@ -55,7 +55,7 @@ These illustrative mockups show the administrator-only sidebar dashboard on desk
 - **Lutron Caséta keypads and Picos built in:** pick a keypad, Pico or shade remote from the core Lutron Caséta integration, including RadioRA 3, HomeWorks QSX, Sunnata, seeTouch and Athena. Its buttons are set up for you. No extra integration needed. On Home Assistant 2026.11 and newer, a Pico's button event entities are used when they report a press and a release. A keypad doesn't report a release that way, so it keeps using Lutron's button event, which is also what older Home Assistant versions use.
 - **Works with other button devices too:** Matter switches and hub buttons, Zigbee, ESPHome and more. Each event type a device sends is recognized automatically, whether it reports presses and releases or detects single, double and held presses itself.
 - **Duplicate a remote:** copy every button's actions to a new remote, with find-and-replace to retarget areas and entities in one step.
-- **Download diagnostics:** a remote's config and each button's live state in one file, for bug reports.
+- **Download diagnostics:** a remote's config and each button's live state in one file, for bug reports. Codes, PINs, passwords and tokens in your actions are redacted.
 
 ## Requirements
 
@@ -246,7 +246,7 @@ Remotes set up with 1.0.0 convert automatically the first time Home Assistant st
 
 ### Diagnostics and debug logs
 
-When something goes wrong, download diagnostics from **Settings → Devices & services → Button Actions → ⋮ → Download diagnostics** and check the file before you share it.
+When something goes wrong, download diagnostics from **Settings → Devices & services → Button Actions → ⋮ → Download diagnostics** and check the file before you share it. Codes, PINs, passwords, tokens, API keys and webhook ids in a remote's settings and actions are replaced with `**REDACTED**`, but names, areas and entity IDs stay so the file still shows what each button does.
 
 For debug logs, use **Enable debug logging** on the integration page, or add this to `configuration.yaml` and restart:
 
@@ -271,7 +271,9 @@ ruff check . && ruff format --check .
 pytest
 ```
 
-The frontend tests run with `node --test tests/*.mjs`.
+The frontend tests run with `node --test tests/*.mjs`. Each test gets its own Home
+Assistant config directory, so `pytest -n auto` (pytest-xdist, installed with the
+harness) is safe to use.
 
 To test against the oldest supported Home Assistant (2026.8), use Python 3.14 and
 `pip install -r requirements_test_min.txt` instead.

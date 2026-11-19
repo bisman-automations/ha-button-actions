@@ -201,16 +201,17 @@ def _button_event_entries(
 
     if found := events_on(device_id):
         return found
-    # Bridged devices belong to the same integration entry as their hub.
+    # Bridged devices belong to the same integration entry as their hub. Since
+    # Home Assistant 2026.8 a device has exactly one config entry
+    # (``config_entry_id``), so only that entry's devices need checking.
     device_registry = dr.async_get(hass)
     if (hub := device_registry.async_get(device_id)) is None:
         return []
-    entry_ids = {hub.config_entry_id}
     connected = [
         device.id
-        for entry_id in entry_ids
-        if entry_id
-        for device in dr.async_entries_for_config_entry(device_registry, entry_id)
+        for device in dr.async_entries_for_config_entry(
+            device_registry, hub.config_entry_id
+        )
         if device.via_device_id == device_id
     ]
     return [reg for child in connected for reg in events_on(child)]
