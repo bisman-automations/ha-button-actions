@@ -442,7 +442,10 @@ class ButtonActionsController:
         if event_type is None:
             return
         role = resolve_role(
-            event_type, new_state.attributes.get("event_types"), self.event_roles
+            event_type,
+            new_state.attributes.get("event_types"),
+            self.event_roles,
+            new_state.attributes,
         )
         _dispatch(detector, role)
 

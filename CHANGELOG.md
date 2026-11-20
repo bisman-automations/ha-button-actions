@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-11-20
+
+### Added
+
+- **Home Assistant's new button events.** Buttons that report Home Assistant's standard `multi_press` event (Home Assistant 2026.12) now trigger short and double press actions from the press count the device sends: one press is a short press, two is a double press. The older `multi_press_end` event of Home Assistant 2026.11 works the same way. Before, these events were ignored.
+
+### Changed
+
+- **A button that only reports being released** (`press_end` with no `press_start`) now counts each release as a full press, so short and double presses work. Home Assistant 2026.12 gives `press_end` the meaning "button released"; some integrations sent it for a whole press before. Lutron Picos, which report both, work as before.
+
 ## [1.12.4] - 2026-11-19
 
 ### Changed
@@ -267,6 +277,7 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
+[1.13.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.4...v1.13.0
 [1.12.4]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.3...v1.12.4
 [1.12.3]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.2...v1.12.3
 [1.12.2]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.1...v1.12.2

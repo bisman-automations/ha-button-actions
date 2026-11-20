@@ -91,6 +91,27 @@ from homeassistant.util import dt as dt_util
         (["switch_latched"], {"switch_latched": "ignore"}),
         # Press with no release: each press is a click
         (["press"], {"press": "click"}),
+        # Home Assistant 2026.12 standard types: device-counted presses
+        (
+            ["single_press", "multi_press"],
+            {"single_press": "single", "multi_press": "double"},
+        ),
+        # With both edges reported, our own detection wins
+        (
+            ["single_press", "multi_press", "press_start", "press_end"],
+            {
+                "single_press": "ignore",
+                "multi_press": "ignore",
+                "press_start": "press",
+                "press_end": "release",
+            },
+        ),
+        # Release only (or a whole press reported as press_end, 2026.11 ISY)
+        (["press_end"], {"press_end": "click"}),
+        (
+            ["single_press", "press_end"],
+            {"single_press": "single", "press_end": "release"},
+        ),
     ],
 )
 def test_suggest_roles(event_types, expected) -> None:
@@ -103,6 +124,43 @@ def test_overrides_win() -> None:
     assert resolve_role("weird", ["weird"], {}) == "ignore"
 
 
+@pytest.mark.parametrize(
+    ("event_type", "attributes", "expected"),
+    [
+        ("multi_press", {"press_count": 1}, "single"),
+        ("multi_press", {"press_count": 2}, "double"),
+        ("multi_press", {"press_count": 3}, "ignore"),
+        ("multi_press", {}, "double"),
+        # Home Assistant 2026.11 name and count attribute
+        ("multi_press_end", {"multi_press_count": 1}, "single"),
+        ("multi_press_end", {"multi_press_count": 2}, "double"),
+        # Other types ignore a count
+        ("single_press", {"press_count": 2}, "single"),
+    ],
+)
+def test_counted_presses(event_type, attributes, expected) -> None:
+    types = ["single_press", event_type]
+    assert resolve_role(event_type, types, {}, attributes) == expected
+
+
+def test_counted_override_still_uses_count() -> None:
+    assert (
+        resolve_role(
+            "multi_press",
+            ["multi_press"],
+            {"multi_press": "single"},
+            {"press_count": 2},
+        )
+        == "double"
+    )
+    assert (
+        resolve_role(
+            "multi_press", ["multi_press"], {"multi_press": "hold"}, {"press_count": 2}
+        )
+        == "hold"
+    )
+
+
 # ---------------------------------------------------------------------------
 # End to end with Matter-style buttons
 # ---------------------------------------------------------------------------
@@ -112,10 +170,10 @@ LIGHT = [{"action": "light.turn_on", "target": {"entity_id": "light.x"}}]
 _ticks = itertools.count()
 
 
-def _fire(hass: HomeAssistant, entity_id: str, event_type: str, types) -> None:
+def _fire(hass: HomeAssistant, entity_id: str, event_type: str, types, **extra) -> None:
     stamp = (dt_util.utcnow() + timedelta(microseconds=next(_ticks))).isoformat()
     hass.states.async_set(
-        entity_id, stamp, {"event_type": event_type, "event_types": types}
+        entity_id, stamp, {"event_type": event_type, "event_types": types, **extra}
     )
 
 
@@ -231,3 +289,24 @@ async def test_matter_multi_press_with_repeat(hass: HomeAssistant) -> None:
     ]
     # long press + 2 repeats, then the release action; plus short and double
     assert len(calls) == 6
+
+
+STANDARD = ["single_press", "multi_press", "long_press_start", "long_press_end"]
+
+
+async def test_standard_counted_presses(hass: HomeAssistant) -> None:
+    """Home Assistant 2026.12's single_press and multi_press with press_count."""
+    events = await _hub(hass, STANDARD)
+    _fire(hass, ON, "single_press", STANDARD)
+    await _settle(hass, 0.5)
+    _fire(hass, ON, "multi_press", STANDARD, press_count=2)
+    await _settle(hass, 0.5)
+    _fire(hass, OFF, "multi_press", STANDARD, press_count=1)
+    await _settle(hass, 0.5)
+    _fire(hass, OFF, "multi_press", STANDARD, press_count=5)
+    await _settle(hass, 0.5)
+    assert _seen(events) == [
+        ("on", "short_press"),
+        ("on", "double_press"),
+        ("off", "short_press"),
+    ]

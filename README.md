@@ -151,8 +151,8 @@ Button devices report presses differently, and Button Actions recognizes the com
 | Device sends | For example | What happens |
 | --- | --- | --- |
 | A press and a release | Lutron's button event (`press`, `release`), a Pico's event entity on Home Assistant 2026.11 (`press_start`, `press_end`), Matter (`initial_press`, `short_release`, `long_release`) | Button Actions times short, double and long presses itself. |
-| A press only | Matter switches without release support (`initial_press`) | Each press counts as a full press. Double presses work; long presses can't be detected. |
-| Gestures it detects itself | Matter multi-press (`multi_press_1`, `multi_press_2`, `long_press`), Zigbee (`single`, `double`, `hold`) | Those gestures are used as they are. Hold-to-repeat still works. |
+| A press only | Matter switches without release support (`initial_press`), a button that only reports `press_end` | Each press counts as a full press. Double presses work; long presses can't be detected. |
+| Gestures it detects itself | Matter multi-press (`multi_press_1`, `multi_press_2`, `long_press`), Zigbee (`single`, `double`, `hold`), Home Assistant's standard `single_press` and `multi_press` (a press count of 1 or 2) | Those gestures are used as they are. Hold-to-repeat still works. |
 
 If a device uses names that aren't recognized, open **Reconfigure** on the remote. It lists every event type the buttons send and what each one means, and you can change any of them.
 
