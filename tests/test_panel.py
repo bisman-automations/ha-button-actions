@@ -140,6 +140,10 @@ async def test_panel_registration_is_admin_only_and_idempotent() -> None:
     assert register.await_count == 1
     assert register.await_args.kwargs["require_admin"] is True
     hass.http.async_register_static_paths.assert_awaited_once()
+    # The versioned script may be kept by the browser until the next update.
+    (static,) = hass.http.async_register_static_paths.await_args.args[0]
+    assert static.cache_headers is True
+    assert "?v=1.7.4" in register.await_args.kwargs["module_url"]
 
 
 async def test_reloading_a_remote_keeps_the_panel(hass: HomeAssistant) -> None:

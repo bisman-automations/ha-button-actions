@@ -247,8 +247,10 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     from homeassistant.components import panel_custom
 
     version = await hass.async_add_executor_job(_version)
+    # The script's URL carries the version, so the browser may keep it until
+    # the next update instead of asking for it again on every visit.
     await hass.http.async_register_static_paths(
-        [StaticPathConfig(STATIC_URL, str(FRONTEND_DIR), cache_headers=False)]
+        [StaticPathConfig(STATIC_URL, str(FRONTEND_DIR), cache_headers=True)]
     )
     # Mark it registered before awaiting the panel, so a second call can't
     # register the static path twice.

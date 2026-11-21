@@ -243,6 +243,42 @@ async def test_missing_entities_issue(hass: HomeAssistant) -> None:
     assert issues.async_get_issue(DOMAIN, issue_id) is None
 
 
+async def test_source_check_ignores_other_registry_changes(
+    hass: HomeAssistant,
+) -> None:
+    """Only registry changes to the remote's own sources are checked (1.13.1)."""
+    entry = await _event_remote(hass, [_button("on", [ON]), _button("off", [OFF])])
+    issue_id = f"source_missing_{entry.entry_id}"
+    issues = ir.async_get(hass)
+    assert issues.async_get_issue(DOMAIN, issue_id) is None
+
+    ent_reg = er.async_get(hass)
+    dev_reg = dr.async_get(hass)
+    other = MockConfigEntry(domain="test")
+    other.add_to_hass(hass)
+    with patch(
+        "custom_components.button_actions.issues.er.async_get", wraps=er.async_get
+    ) as lookups:
+        # Unrelated entities and devices come and go.
+        for n in range(5):
+            ent_reg.async_get_or_create("light", "test", f"lamp_{n}")
+            dev_reg.async_get_or_create(
+                config_entry_id=other.entry_id, identifiers={("test", f"dev_{n}")}
+            )
+        ent_reg.async_update_entity("light.test_lamp_0", name="Lamp")
+        await _settle(hass)
+        assert lookups.call_count == 0
+
+        # One of the remote's own entities is renamed away: that's checked.
+        hass.states.async_remove(OFF)
+        ent_reg.async_update_entity(OFF, new_entity_id="event.renamed_remote_off")
+        await _settle(hass)
+        assert lookups.call_count == 1
+    issue = issues.async_get_issue(DOMAIN, issue_id)
+    assert issue is not None
+    assert issue.translation_placeholders["entities"] == OFF
+
+
 async def test_missing_pico_issue(hass: HomeAssistant) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,

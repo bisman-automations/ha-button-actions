@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.1] - 2026-11-20
+
+### Changed
+
+- **Less work when other devices change.** Each remote used to re-check its buttons' sources every time any entity or device anywhere in Home Assistant was added, renamed or updated. Now it only looks when one of its own buttons' entities (or, for a Pico, its own Pico) changes. Missing-entity and missing-Pico repairs appear and clear exactly as before.
+- **The Button Actions page opens faster after the first time.** The browser now keeps the page's script until Button Actions is updated, instead of asking Home Assistant for it on every visit.
+
 ## [1.13.0] - 2026-11-20
 
 ### Added
@@ -277,6 +284,7 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
+[1.13.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.13.0...v1.13.1
 [1.13.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.4...v1.13.0
 [1.12.4]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.3...v1.12.4
 [1.12.3]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.2...v1.12.3

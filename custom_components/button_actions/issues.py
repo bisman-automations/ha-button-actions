@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.const import CONF_DEVICE_ID, STATE_ON
@@ -140,9 +141,37 @@ def async_track_issues(
 
     # Wait until startup is done so entities from slower integrations exist.
     entry.async_on_unload(async_at_started(hass, _check_sources))
-    entry.async_on_unload(
-        hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, _check_sources)
-    )
-    entry.async_on_unload(
-        hass.bus.async_listen(dr.EVENT_DEVICE_REGISTRY_UPDATED, _check_sources)
-    )
+    # Only registry changes to this remote's own sources are looked at: every
+    # other entity or device being added, renamed or updated in the home is
+    # filtered out before the check runs.
+    if controller.source == SOURCE_LUTRON:
+        device_id = entry.data.get(CONF_DEVICE_ID)
+
+        @callback
+        def _is_our_device(data: Mapping[str, Any]) -> bool:
+            return device_id is not None and data.get("device_id") == device_id
+
+        entry.async_on_unload(
+            hass.bus.async_listen(
+                dr.EVENT_DEVICE_REGISTRY_UPDATED, _check_sources, _is_our_device
+            )
+        )
+    else:
+        watched = {
+            entity_id for button in controller.buttons for entity_id in button.entities
+        }
+
+        @callback
+        def _is_our_entity(data: Mapping[str, Any]) -> bool:
+            # A rename reports the new id in entity_id and the old one in
+            # old_entity_id; either can be one of this remote's sources.
+            return (
+                data.get("entity_id") in watched or data.get("old_entity_id") in watched
+            )
+
+        if watched:
+            entry.async_on_unload(
+                hass.bus.async_listen(
+                    er.EVENT_ENTITY_REGISTRY_UPDATED, _check_sources, _is_our_entity
+                )
+            )
