@@ -269,9 +269,10 @@ async def test_source_check_ignores_other_registry_changes(
         await _settle(hass)
         assert lookups.call_count == 0
 
-        # One of the remote's own entities is renamed away: that's checked.
+        # One of the remote's own entities is removed: that's checked. (A new
+        # entity ID is followed instead, see test_renames.py.)
         hass.states.async_remove(OFF)
-        ent_reg.async_update_entity(OFF, new_entity_id="event.renamed_remote_off")
+        ent_reg.async_remove(OFF)
         await _settle(hass)
         assert lookups.call_count == 1
     issue = issues.async_get_issue(DOMAIN, issue_id)

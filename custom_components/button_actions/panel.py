@@ -97,6 +97,7 @@ def websocket_subscribe_panel(
     data; the dashboard fetches the summary again.
     """
     unsub_states: CALLBACK_TYPE | None = None
+    tracked: frozenset[str] = frozenset()
 
     @callback
     def notify() -> None:
@@ -111,16 +112,21 @@ def websocket_subscribe_panel(
 
     @callback
     def track_sources() -> None:
-        nonlocal unsub_states
-        if unsub_states is not None:
-            unsub_states()
-            unsub_states = None
-        entity_ids = {
+        nonlocal unsub_states, tracked
+        entity_ids = frozenset(
             entity_id
             for entry in hass.config_entries.async_entries(DOMAIN)
             for button in buttons_from_entry(entry)
             for entity_id in button.entities
-        }
+        )
+        # A remote reloading changes its state several times; the sources
+        # it listens to only change when a button is edited.
+        if entity_ids == tracked:
+            return
+        tracked = entity_ids
+        if unsub_states is not None:
+            unsub_states()
+            unsub_states = None
         if entity_ids:
             unsub_states = async_track_state_change_event(
                 hass, entity_ids, source_changed

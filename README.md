@@ -241,6 +241,7 @@ Remotes set up with 1.0.0 convert automatically the first time Home Assistant st
 
 - Gesture event entities and device triggers only report gestures the button is watching for. A button with no double-press action never reports `double_press` unless **Detect every gesture** is on.
 - If a release event goes missing, the next press resets the button, and repeat stops after 30 seconds, so a button can't get stuck.
+- If you change the entity ID of a button's event entity, the button follows it and keeps working. You don't need to edit the remote.
 
 ## Troubleshooting
 

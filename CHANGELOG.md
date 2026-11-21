@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.2] - 2026-11-21
+
+### Fixed
+
+- **Buttons keep working when you change their event entity's ID.** Before, a button kept listening to the old entity ID, so its presses did nothing and a repair said its entity was missing. Now the button switches to the new ID by itself.
+
+### Changed
+
+- **The Button Actions page redraws less.** When a remote reloads with the same settings, or Lutron Caséta restarts, the page no longer redraws when nothing it shows has changed.
+- **Less work while the Button Actions page is open.** Reloading a remote no longer makes the page stop and restart watching every button's entities; it only does that when a button's entities change.
+
 ## [1.13.1] - 2026-11-20
 
 ### Changed
@@ -288,6 +299,7 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
+[1.13.2]: https://github.com/bisman-automations/ha-button-actions/compare/v1.13.1...v1.13.2
 [1.13.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.13.0...v1.13.1
 [1.13.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.4...v1.13.0
 [1.12.4]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.3...v1.12.4

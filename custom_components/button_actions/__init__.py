@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import logging
 from types import MappingProxyType
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import (
     config_validation as cv,
     device_registry as dr,
@@ -82,6 +84,7 @@ async def async_setup_entry(
     _async_tidy_devices(hass, entry, controller.own_device_id)
     await controller.async_start()
     async_track_issues(hass, entry, controller)
+    _async_follow_entity_renames(hass, entry, controller)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
@@ -106,6 +109,45 @@ async def _async_update_listener(
 ) -> None:
     """Reload when timing changes or a button is added, edited or removed."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+@callback
+def _async_follow_entity_renames(
+    hass: HomeAssistant, entry: ConfigEntry, controller: ButtonActionsController
+) -> None:
+    """Keep a button working when its source entity's ID is changed.
+
+    The remote listens by entity ID. When one of its buttons' entities is
+    given a new ID, the button is updated to it, which reloads the remote so
+    it listens to the new ID.
+    """
+    watched = {
+        entity_id for button in controller.buttons for entity_id in button.entities
+    }
+    if not watched:
+        return
+
+    @callback
+    def _is_our_rename(data: Mapping[str, Any]) -> bool:
+        return data.get("action") == "update" and data.get("old_entity_id") in watched
+
+    @callback
+    def _follow(event: Event) -> None:
+        old = event.data["old_entity_id"]
+        new = event.data["entity_id"]
+        for sub in list(entry.subentries.values()):
+            entities = list(sub.data.get(CONF_ENTITIES) or [])
+            if sub.subentry_type != SUBENTRY_BUTTON or old not in entities:
+                continue
+            renamed = list(dict.fromkeys(new if e == old else e for e in entities))
+            _LOGGER.debug("%s: %s is now %s", entry.title, old, new)
+            hass.config_entries.async_update_subentry(
+                entry, sub, data={**sub.data, CONF_ENTITIES: renamed}
+            )
+
+    entry.async_on_unload(
+        hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, _follow, _is_our_rename)
+    )
 
 
 @callback

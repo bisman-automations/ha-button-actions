@@ -31,6 +31,7 @@ from homeassistant.config_entries import ConfigEntryState, ConfigSubentryData
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.event import async_track_state_change_event
 
 
 def _remote(hass: HomeAssistant) -> MockConfigEntry:
@@ -191,6 +192,37 @@ async def test_panel_subscription_reports_changes(
     hass.states.async_set("event.office_remote_button", "unavailable")
     await hass.async_block_till_done()
     assert await drain() == 1
+
+
+async def test_panel_subscription_keeps_its_listener_across_reloads(
+    hass: HomeAssistant, hass_ws_client
+) -> None:
+    """Reloading a remote doesn't re-subscribe to its unchanged sources."""
+    entry = _remote(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    client = await hass_ws_client(hass)
+    with patch(
+        "custom_components.button_actions.panel.async_track_state_change_event",
+        wraps=async_track_state_change_event,
+    ) as track:
+        await client.send_json_auto_id({"type": "button_actions/panel/subscribe"})
+        assert (await client.receive_json())["success"]
+        assert track.call_count == 1
+
+        assert await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+        assert track.call_count == 1
+
+        # A button moved to another entity: that one is watched instead.
+        (sub,) = entry.subentries.values()
+        hass.states.async_set("event.office_remote_other", "unknown")
+        hass.config_entries.async_update_subentry(
+            entry, sub, data={**sub.data, CONF_ENTITIES: ["event.office_remote_other"]}
+        )
+        await hass.async_block_till_done()
+        assert track.call_count == 2
+        assert set(track.call_args.args[1]) == {"event.office_remote_other"}
 
 
 @pytest.mark.parametrize("lutron_state", ["loaded", "not_loaded", "no_pico"])

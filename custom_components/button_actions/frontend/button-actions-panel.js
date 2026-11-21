@@ -56,11 +56,20 @@ class ButtonActionsPanel extends HTMLElement {
         type: "button_actions/panel/config",
       });
       this._remotes = result.remotes;
+      const wasRefreshing = this._refreshing;
       this._refreshing = false;
+      // A live update that changes nothing the page shows (a remote reloaded
+      // with the same settings, Lutron restarting) leaves the page as it is.
+      const drawn = JSON.stringify(result.remotes);
+      if (quiet && !wasRefreshing && drawn === this._drawn) return;
+      this._drawn = drawn;
       this._render();
     } catch (error) {
       this._refreshing = false;
-      if (!quiet) this._renderError(error);
+      if (!quiet) {
+        this._drawn = null;
+        this._renderError(error);
+      }
     }
   }
 

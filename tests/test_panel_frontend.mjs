@@ -381,6 +381,52 @@ test("live updates refresh quietly, without a spinner", async () => {
   await loading;
 });
 
+test("a live update that changes nothing shown doesn't redraw the page", async () => {
+  const panel = await createPanel();
+  panel.shadowRoot = fakeShadow();
+  let answer = { remotes: [remote] };
+  panel._hass = { callWS: async () => structuredClone(answer) };
+  let draws = 0;
+  const render = panel._render.bind(panel);
+  panel._render = () => {
+    draws += 1;
+    render();
+  };
+
+  await panel._load();
+  assert.equal(draws, 1);
+  await panel._load({ quiet: true });
+  assert.equal(draws, 1, "same summary: nothing redrawn");
+
+  answer = { remotes: [{ ...remote, title: "Study Remote" }] };
+  await panel._load({ quiet: true });
+  assert.equal(draws, 2, "a changed summary is drawn");
+  assert.match(panel.shadowRoot.innerHTML, /Study Remote/);
+
+  // The Refresh button always redraws, to put its label back.
+  await panel._load();
+  assert.equal(draws, 3);
+});
+
+test("a live update after an error draws the page again", async () => {
+  const panel = await createPanel();
+  panel.shadowRoot = fakeShadow();
+  let fail = false;
+  panel._hass = {
+    callWS: async () => {
+      if (fail) throw new Error("offline");
+      return { remotes: [remote] };
+    },
+  };
+  await panel._load();
+  fail = true;
+  await panel._load();
+  assert.doesNotMatch(panel.shadowRoot.innerHTML, /Office Remote/);
+  fail = false;
+  await panel._load({ quiet: true });
+  assert.match(panel.shadowRoot.innerHTML, /Office Remote/);
+});
+
 test("popups show a spinner while a flow opens", async () => {
   const panel = await createPanel();
   const dialogs = [];
