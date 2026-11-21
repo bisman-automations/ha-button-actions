@@ -168,6 +168,7 @@ async def test_button_form_follows_capabilities(hass: HomeAssistant) -> None:
         result["flow_id"], {"entities": ["event.hub_1"], "short_press": LIGHT}
     )
     assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
     # The hidden long-press action is kept for if long press is turned back on.
     assert entry.subentries[sub.subentry_id].data[CONF_ACTIONS] == {
         "long_press": LIGHT,
@@ -205,6 +206,7 @@ async def test_reconfigure_capabilities(hass: HomeAssistant) -> None:
         result["flow_id"], {"initial_press": "click"}
     )
     assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
     assert entry.data["supports_double"] is False
     assert entry.data["supports_long"] is True
     assert entry.data["layout"] == "numbered"

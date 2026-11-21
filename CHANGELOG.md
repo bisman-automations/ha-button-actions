@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Less work when other devices change.** Each remote used to re-check its buttons' sources every time any entity or device anywhere in Home Assistant was added, renamed or updated. Now it only looks when one of its own buttons' entities (or, for a Pico, its own Pico) changes. Missing-entity and missing-Pico repairs appear and clear exactly as before.
 - **The Button Actions page opens faster after the first time.** The browser now keeps the page's script until Button Actions is updated, instead of asking Home Assistant for it on every visit.
 
+### Fixed
+
+- **Tests are steady on the upcoming Home Assistant 2026.12.** A few Reconfigure tests finished before the reload Reconfigure starts had run, which failed now and then against Home Assistant 2026.12's development build. They now wait for it. Nothing changes for you.
+
 ## [1.13.0] - 2026-11-20
 
 ### Added

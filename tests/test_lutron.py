@@ -350,6 +350,7 @@ async def test_reconfigure_rename_and_event_types(hass: HomeAssistant) -> None:
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
     assert entry.title == "Kitchen"
     assert entry.data["event_roles"] == {
         "down": "press",
@@ -418,6 +419,7 @@ async def test_reconfigure_pico_remote_rename(hass: HomeAssistant, pico: str) ->
         result["flow_id"], {"name": "Island Pico", "device_id": pico}
     )
     assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
     assert entry.title == "Island Pico"
     assert entry.data["device_id"] == pico
 

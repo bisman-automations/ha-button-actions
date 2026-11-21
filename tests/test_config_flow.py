@@ -299,6 +299,7 @@ async def test_reconfigure_button(hass: HomeAssistant) -> None:
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
+    await hass.async_block_till_done()
     assert entry.subentries[sub.subentry_id].data[CONF_ACTIONS] == {
         "double_press": LONG_ACTION
     }
