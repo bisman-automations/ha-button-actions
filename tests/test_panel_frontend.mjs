@@ -463,3 +463,42 @@ test("a hidden page loads once when it's seen again", async () => {
   panel.disconnectedCallback();
   assert.equal(listeners.visibilitychange, undefined);
 });
+
+test("a panel put back in the page catches up on changes it missed", async () => {
+  const document = {
+    hidden: false,
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const panel = await createPanel({ document, setTimeout, clearTimeout });
+  let subscribed = 0;
+  const hass = {
+    callWS: async () => ({ remotes: [remote] }),
+    connection: {
+      subscribeMessage: () => {
+        subscribed += 1;
+        return Promise.resolve(() => {});
+      },
+    },
+  };
+  panel.attachShadow = () => {
+    panel.shadowRoot = fakeShadow();
+  };
+  panel.hass = hass;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  panel.connectedCallback();
+  assert.equal(subscribed, 1, "already subscribed when first added");
+
+  let loads = 0;
+  const load = panel._load.bind(panel);
+  panel._load = (options) => {
+    loads += 1;
+    return load(options);
+  };
+  // Home Assistant takes a long-hidden panel out and puts the same one back.
+  panel.disconnectedCallback();
+  panel.connectedCallback();
+  assert.equal(subscribed, 2);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  assert.equal(loads, 1, "loads once to catch up");
+});

@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.3] - 2026-11-27
+
+### Fixed
+
+- **The Button Actions page no longer shows out-of-date remotes after its tab sat in the background.** When the page is hidden for a few minutes, Home Assistant sets it aside and brings it back when you look again. Changes made in the meantime, such as a remote added or a button edited on another device, didn't show until you pressed Refresh. The page now loads once when it comes back.
+
 ## [1.13.2] - 2026-11-21
 
 ### Fixed
@@ -299,6 +305,7 @@ First release.
 - Integration icon, shown in the Home Assistant UI on 2026.3 and newer.
 - HACS support, plus CI running hassfest, HACS validation, ruff and tests.
 
+[1.13.3]: https://github.com/bisman-automations/ha-button-actions/compare/v1.13.2...v1.13.3
 [1.13.2]: https://github.com/bisman-automations/ha-button-actions/compare/v1.13.1...v1.13.2
 [1.13.1]: https://github.com/bisman-automations/ha-button-actions/compare/v1.13.0...v1.13.1
 [1.13.0]: https://github.com/bisman-automations/ha-button-actions/compare/v1.12.4...v1.13.0

@@ -25,7 +25,12 @@ class ButtonActionsPanel extends HTMLElement {
   }
 
   connectedCallback() {
-    if (this._hass && !this._unsub) this._subscribe();
+    if (!this._hass || this._unsub) return;
+    this._subscribe();
+    // Home Assistant takes a panel out of the page after it has been hidden
+    // for a while and puts the same one back when it's seen again. Changes
+    // made in between never reached it, so load once to catch up.
+    if (this._remotes !== undefined) this._scheduleRefresh();
   }
 
   disconnectedCallback() {
@@ -34,6 +39,7 @@ class ButtonActionsPanel extends HTMLElement {
       this._unsub = null;
     }
     clearTimeout(this._refreshTimer);
+    this._stale = false;
     if (this._onVisible) {
       document.removeEventListener("visibilitychange", this._onVisible);
       this._onVisible = null;
